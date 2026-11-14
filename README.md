@@ -2,7 +2,11 @@
 
 Vinder is a GNOME file manager based on [GNOME Files (Nautilus)](https://apps.gnome.org/Nautilus/). It adds an Interface dialog with theme and blur controls.
 
-![Vinder showing a blurred sidebar and menu beside a light file grid](docs/vinder-screenshot.png)
+![Vinder showing Computer at the top of the sidebar beside a grid of image thumbnails](docs/vinder-screenshot.png)
+
+## Computer
+
+Select **Computer** at the top of the sidebar to browse the filesystem root. In the Flatpak, Vinder opens the host filesystem root when Flatpak exposes it.
 
 ## Appearance
 
