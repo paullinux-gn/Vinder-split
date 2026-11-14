@@ -1,8 +1,8 @@
-icondir = join_paths('icons', 'hicolor', 'scalable', 'apps')
+icondir = join_paths('icons', 'hicolor', '512x512', 'apps')
 install_data(
-  join_paths(icondir, 'org.gnome.Nautilus' + profile + '.svg'),
+  join_paths(icondir, 'vinder.png'),
   install_dir: join_paths(datadir, icondir),
-  rename: f'@application_id@.svg',
+  rename: f'@application_id@.png',
 )
 
 icondir = join_paths('icons', 'hicolor', 'symbolic', 'apps')

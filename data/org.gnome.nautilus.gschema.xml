@@ -78,6 +78,38 @@
   </schema>
 
   <schema path="/org/gnome/nautilus/preferences/" id="org.gnome.nautilus.preferences" gettext-domain="nautilus">
+    <key name="vinder-blur" type="b">
+      <default>false</default>
+      <summary>Sidebar blur</summary>
+    </key>
+    <key name="vinder-menu-blur" type="b">
+      <default>true</default>
+      <summary>Blur menus when interface blur is enabled</summary>
+    </key>
+    <key name="vinder-blur-reminder-seen" type="b">
+      <default>false</default>
+      <summary>Whether the sidebar blur reminder was shown</summary>
+    </key>
+    <key name="vinder-blur-opacity" type="d">
+      <range min="0" max="100"/>
+      <default>78</default>
+      <summary>Sidebar tint opacity in percent</summary>
+    </key>
+    <key name="vinder-blur-strength" type="d">
+      <range min="0" max="40"/>
+      <default>30</default>
+      <summary>Sidebar blur strength in pixels</summary>
+    </key>
+    <key name="vinder-appearance" type="s">
+      <choices>
+        <choice value="light"/>
+        <choice value="dark"/>
+        <choice value="dark-and-light"/>
+      </choices>
+      <default>'light'</default>
+      <summary>Vinder appearance</summary>
+      <description>The color theme used by Vinder.</description>
+    </key>
     <key type="b" name="always-use-location-entry">
       <default>false</default>
       <summary>Always use the location entry, instead of the pathbar</summary>

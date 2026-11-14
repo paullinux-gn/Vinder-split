@@ -1693,13 +1693,20 @@ nautilus_window_show_about_dialog (NautilusWindow *window)
 
     dialog = adw_about_dialog_new_from_appdata ("/org/gnome/nautilus/appdata", NULL);
 
+    adw_about_dialog_set_application_name (ADW_ABOUT_DIALOG (dialog), "Vinder");
+    adw_about_dialog_set_application_icon (ADW_ABOUT_DIALOG (dialog), APPLICATION_ID);
+    adw_about_dialog_set_developer_name (ADW_ABOUT_DIALOG (dialog), "Vinder Contributors");
+    adw_about_dialog_set_comments (ADW_ABOUT_DIALOG (dialog),
+                                   _("A GNOME file manager based on Nautilus."));
+    adw_about_dialog_set_website (ADW_ABOUT_DIALOG (dialog), "https://github.com/paullinux-gn/vinder");
+    adw_about_dialog_set_issue_url (ADW_ABOUT_DIALOG (dialog), "https://github.com/paullinux-gn/vinder/issues");
     adw_about_dialog_set_version (ADW_ABOUT_DIALOG (dialog), VERSION);
     adw_about_dialog_set_debug_info (ADW_ABOUT_DIALOG (dialog), debug_info);
     adw_about_dialog_set_copyright (ADW_ABOUT_DIALOG (dialog), "© 1999 The Files Authors");
     adw_about_dialog_set_developers (ADW_ABOUT_DIALOG (dialog), developers);
     adw_about_dialog_set_designers (ADW_ABOUT_DIALOG (dialog), designers);
     adw_about_dialog_set_documenters (ADW_ABOUT_DIALOG (dialog), documenters);
-    adw_about_dialog_set_support_url (ADW_ABOUT_DIALOG (dialog), "https://discourse.gnome.org/tag/nautilus");
+    adw_about_dialog_set_support_url (ADW_ABOUT_DIALOG (dialog), "https://github.com/paullinux-gn/vinder/issues");
     /* Translators should localize the following string which will be displayed at the bottom of
      * the about box to give credit to the translator(s). */
     adw_about_dialog_set_translator_credits (ADW_ABOUT_DIALOG (dialog), _("translator-credits"));

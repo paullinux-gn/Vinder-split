@@ -1,3 +1,48 @@
+/* Hide libadwaita’s development stripes in the main window. */
+window.devel.vinder-window toolbarview > .top-bar {
+  background-image: none;
+}
+
+/* Mixed appearance uses Adwaita dark, with a light palette on the file side. */
+.vinder-dark-and-light .vinder-content {
+  --window-bg-color: #fafafb;
+  --window-fg-color: rgb(0 0 6 / 80%);
+  --view-bg-color: #fff;
+  --view-fg-color: var(--window-fg-color);
+  --headerbar-bg-color: #fff;
+  --headerbar-fg-color: var(--window-fg-color);
+  --headerbar-backdrop-color: var(--window-bg-color);
+  --headerbar-shade-color: rgb(0 0 6 / 12%);
+  --headerbar-darker-shade-color: var(--headerbar-shade-color);
+  --card-bg-color: #fff;
+  --card-fg-color: var(--window-fg-color);
+  --thumbnail-bg-color: #fff;
+  --thumbnail-fg-color: var(--window-fg-color);
+  --scrollbar-outline-color: #fff;
+  --standalone-color-oklab: min(l, 0.5) a b;
+  background-color: var(--view-bg-color);
+  color: var(--view-fg-color);
+}
+
+.vinder-dark-and-light .vinder-content popover {
+  --window-bg-color: @window_bg_color;
+  --window-fg-color: @window_fg_color;
+  --view-bg-color: @view_bg_color;
+  --view-fg-color: @view_fg_color;
+  --headerbar-bg-color: @headerbar_bg_color;
+  --headerbar-fg-color: @headerbar_fg_color;
+  --headerbar-backdrop-color: @headerbar_backdrop_color;
+  --headerbar-shade-color: @headerbar_shade_color;
+  --headerbar-darker-shade-color: @headerbar_darker_shade_color;
+  --card-bg-color: @card_bg_color;
+  --card-fg-color: @card_fg_color;
+  --thumbnail-bg-color: @thumbnail_bg_color;
+  --thumbnail-fg-color: @thumbnail_fg_color;
+  --scrollbar-outline-color: @scrollbar_outline_color;
+  --standalone-color-oklab: max(l, 0.85) a b;
+  color: var(--popover-fg-color);
+}
+
 /* Toolbar */
 
 @keyframes needs_attention_keyframes {

@@ -39,6 +39,13 @@ menu app_menu {
 
   section {
     item {
+      label: _("Interface");
+      action: "app.vinder-interface";
+    }
+  }
+
+  section {
+    item {
       label: _("_Preferences");
       action: "app.preferences";
     }
@@ -54,7 +61,7 @@ menu app_menu {
     }
 
     item {
-      label: _("_About Files");
+      label: _("_About Vinder");
       action: "app.about";
     }
   }
@@ -129,6 +136,7 @@ template $NautilusWindow: Adw.ApplicationWindow {
 
   styles [
     "view",
+    "vinder-window",
   ]
 
   $NautilusShortcutManager {
@@ -144,6 +152,8 @@ template $NautilusWindow: Adw.ApplicationWindow {
           enable-hide-gesture: false;
           sidebar-width-fraction: 0.2;
 
+          styles ["vinder-split-view"]
+
           sidebar: Adw.ToolbarView {
             reveal-bottom-bars: bind progress_indicator.reveal;
 
@@ -157,7 +167,7 @@ template $NautilusWindow: Adw.ApplicationWindow {
               }
 
               title-widget: Adw.WindowTitle {
-                title: _("Files");
+                title: "Vinder";
               };
 
               [end]
@@ -184,6 +194,8 @@ template $NautilusWindow: Adw.ApplicationWindow {
           };
 
           content: Adw.ToolbarView {
+            styles ["vinder-content"]
+
             [top]
             $NautilusToolbar toolbar {
               show-view-controls: true;
