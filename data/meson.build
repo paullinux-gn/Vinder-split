@@ -18,6 +18,7 @@ po_dir = join_paths(meson.project_source_root(), 'po')
 desktop_conf = configuration_data()
 
 desktop_conf.set('icon', application_id)
+desktop_conf.set('app-name', profile == 'Vinder' ? 'Vinder' : 'Files')
 
 desktop = i18n.merge_file(
   input: configure_file(
@@ -44,6 +45,8 @@ desktop_autorun_software = i18n.merge_file(
 appdata_conf = configuration_data()
 
 appdata_conf.set('appid', application_id)
+appdata_conf.set('app-name', profile == 'Vinder' ? 'Vinder' : 'Files')
+appdata_conf.set('vinder-release', profile == 'Vinder' ? '<release version="1.0" date="2026-11-14"/>' : '')
 
 release_version = meson.project_version()
 python = find_program('python3', required: false)

@@ -173,9 +173,11 @@ if get_option('profile') == 'Devel'
   app_id_suffix = '.Devel'
 endif
 
-application_id = 'org.gnome.Nautilus' + app_id_suffix
+application_id = profile == 'Vinder' ? 'io.github.paullinux_gn.Vinder' : 'org.gnome.Nautilus' + app_id_suffix
 
-if profile == ''
+if profile == 'Vinder'
+  version_string = '1.0'
+elif profile == ''
   # Example: 40.0
   version_string = meson.project_version()
 else
@@ -188,7 +190,8 @@ conf.set_quoted('GETTEXT_PACKAGE', 'nautilus')
 conf.set_quoted('LOCALEDIR', join_paths(prefix, localedir))
 conf.set_quoted('NAUTILUS_DATADIR', join_paths(prefix, datadir, 'nautilus'))
 conf.set_quoted('NAUTILUS_EXTENSIONDIR', join_paths(prefix, extensiondir))
-conf.set_quoted('PACKAGE_VERSION', meson.project_version())
+conf.set_quoted('APPLICATION_NAME', profile == 'Vinder' ? 'Vinder' : 'GNOME nautilus')
+conf.set_quoted('PACKAGE_VERSION', profile == 'Vinder' ? version_string : meson.project_version())
 conf.set_quoted('PROFILE', profile)
 conf.set_quoted('VERSION', version_string)
 

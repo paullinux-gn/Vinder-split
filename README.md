@@ -29,3 +29,14 @@ The development profile uses the separate application ID `org.gnome.Nautilus.Dev
 ## Source and licensing
 
 Vinder builds on the work of the [GNOME Nautilus contributors](https://gitlab.gnome.org/GNOME/nautilus). See [LICENSE](LICENSE) for licensing terms. Report Vinder issues on [GitHub](https://github.com/paullinux-gn/vinder/issues).
+
+## Flatpak
+
+Download `Vinder-1.0-x86_64.flatpak` from the [GitHub release](https://github.com/paullinux-gn/vinder/releases/tag/v1.0). The bundle uses the GNOME 51 runtime from Flathub.
+
+```sh
+flatpak install --user Vinder-1.0-x86_64.flatpak
+flatpak run io.github.paullinux_gn.Vinder
+```
+
+The Flatpak has its own application ID and can be installed alongside GNOME Files.

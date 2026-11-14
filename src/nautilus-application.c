@@ -1053,7 +1053,7 @@ nautilus_application_command_line (GApplication            *application,
     if (g_variant_dict_contains (options, "version"))
     {
         g_application_command_line_print (command_line,
-                                          "GNOME nautilus " PACKAGE_VERSION "\n");
+                                          APPLICATION_NAME " " PACKAGE_VERSION "\n");
         return EXIT_SUCCESS;
     }
     else if (!do_cmdline_sanity_checks (options))
