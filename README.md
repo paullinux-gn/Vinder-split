@@ -1,40 +1,31 @@
-# nautilus
-[![Pipeline status](https://gitlab.gnome.org/GNOME/nautilus/badges/main/pipeline.svg)](https://gitlab.gnome.org/GNOME/nautilus/commits/main)
-[![coverage report](https://gitlab.gnome.org/GNOME/nautilus/badges/main/coverage.svg)](https://gitlab.gnome.org/GNOME/nautilus/commits/main) 
+# Vinder
 
-This is the project of the [Files](https://apps.gnome.org/Nautilus/) app, a file browser for
-GNOME, internally known by its historical name `nautilus`.
+Vinder is a GNOME file manager based on [GNOME Files (Nautilus)](https://apps.gnome.org/Nautilus/). It adds an Interface dialog with theme and blur controls.
 
-## Supported version
-Only the latest version of Files as provided upstream is supported. Try out the [Flatpak nightly](https://welcome.gnome.org/en/app/Nautilus/#installing-a-nightly-build) installation before filling issues to ensure the installation is reproducible and doesn't have downstream changes on it. In case you cannot reproduce in the nightly installation, don't hesitate to file an issue in your distribution. This is to ensure the issue is well triaged and reaches the proper people.
+![Vinder showing a blurred sidebar and menu beside a light file grid](docs/vinder-screenshot.png)
 
-## Runtime dependencies
-- [Bubblewrap](https://github.com/containers/bubblewrap) installed. Used for security reasons.
-- [LocalSearch](https://gitlab.gnome.org/GNOME/localsearch) properly set up and with all features enabled. Used for fast search and metadata extraction, starred files and batch renaming.
-- [xdg-user-dirs-gtk](https://gitlab.gnome.org/GNOME/xdg-user-dirs-gtk) installed.  Used to create the default bookmarks and update localization.
+## Appearance
 
-## Discourse
+Open the main menu and choose **Interface**. Select **Light**, **Dark**, or **Dark and Light** for a dark sidebar and light file area. Turn on **Blur** to give the sidebar and popup windows a translucent background, then adjust **Opacity (%)** and **Blur Strength**. **Blur Menus** controls menus and popovers separately while blur is enabled.
 
-For more informal discussion we use [GNOME Discourse](https://discourse.gnome.org/tags/nautilus) in the Applications category with the `nautilus` tag. Feel free to open a topic there.
+Desktop backdrop blur requires GNOME 51 or later.
 
-## Extensions
+## Build and run
 
-Documentation for the libnautilus-extension API is available [here](https://gnome.pages.gitlab.gnome.org/nautilus/).  Also, if you are interested in developing a Nautilus extension in Python you should refer to the [nautilus-python](https://gnome.pages.gitlab.gnome.org/nautilus-python/) documentation.
+Install Meson, Ninja, a C toolchain, the Blueprint compiler, and the Nautilus development dependencies for your distribution. The runtime uses Bubblewrap, LocalSearch, and xdg-user-dirs-gtk for file management features.
 
-## How to report issues
+From the repository root, build and install into a private prefix:
 
-Report issues to the GNOME [issue tracking system](https://gitlab.gnome.org/GNOME/nautilus/issues).
+```sh
+meson setup build -Dprofile=Devel --prefix="$PWD/local"
+meson compile -C build
+meson install -C build
+XDG_DATA_DIRS="$PWD/local/share:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}" \
+  "$PWD/local/bin/nautilus" --new-window
+```
 
-## Feature requests
+The development profile uses the separate application ID `org.gnome.Nautilus.Devel`.
 
-Files is a core compoment of the GNOME desktop experience. As such, any changes in behavior or appearance only happen in accordance with the [GNOME design team][design-team].
+## Source and licensing
 
-For major changes, it is best to start a discussion on [discourse] and reach out on the [#gnome-design matrix room][design-room], and only involve the issue tracker once agreement has been reached.
-
-In particular mockups must be approved by the design team to be considered for implementation.
-
-For enhancements that are limited in scope and well-defined, it is acceptable to directly open an issue using the shortcoming template.
-
-[design-team]: https://gitlab.gnome.org/Teams/Design
-[discourse]: https://discourse.gnome.org/tag/nautilus
-[design-room]: https://matrix.to/#/#gnome-design:gnome.org
+Vinder builds on the work of the [GNOME Nautilus contributors](https://gitlab.gnome.org/GNOME/nautilus). See [LICENSE](LICENSE) for licensing terms. Report Vinder issues on [GitHub](https://github.com/paullinux-gn/vinder/issues).
