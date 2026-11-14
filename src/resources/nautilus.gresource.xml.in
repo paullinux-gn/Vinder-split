@@ -2,6 +2,7 @@
 <gresources>
   <gresource prefix="/org/gnome/nautilus">
     <file alias="appdata" compressed="true" preprocess="xml-stripblanks">./../data/@appid@.metainfo.xml</file>
+    <file alias="vinder-app-icons/@appid@.png">../../data/icons/hicolor/512x512/apps/vinder.png</file>
 
     <!-- Menu definitions -->
     <file preprocess="xml-stripblanks">menu/nautilus-files-view-context-menus.ui</file>

@@ -1264,6 +1264,8 @@ nautilus_application_startup (GApplication *app)
      */
     G_APPLICATION_CLASS (nautilus_application_parent_class)->startup (G_APPLICATION (self));
 
+    gtk_icon_theme_add_resource_path (gtk_icon_theme_get_for_display (gdk_display_get_default ()),
+                                      "/org/gnome/nautilus/vinder-app-icons");
     gtk_window_set_default_icon_name (APPLICATION_ID);
 
     /* initialize preferences and create the global GSettings objects */
