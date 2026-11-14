@@ -97,6 +97,10 @@
           "type": "git",
           "url": "https://gitlab.gnome.org/GNOME/gnome-desktop.git",
           "tag": "51.0"
+        },
+        {
+          "type": "patch",
+          "path": "gnome-desktop-host-root-thumbnails.patch"
         }
       ]
     },

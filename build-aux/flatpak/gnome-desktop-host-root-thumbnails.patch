@@ -1,0 +1,29 @@
+--- a/libgnome-desktop/gnome-desktop-thumbnail-script.c
++++ b/libgnome-desktop/gnome-desktop-thumbnail-script.c
+@@ -1160,6 +1160,26 @@
+           goto bail;
+         }
+ 
++      /* The nested Flatpak cannot expose the parent sandbox's host-root
++       * mount. Stage only the requested file in the shared sandbox directory.
++       */
++      if (g_str_has_prefix (exec->infile, "/run/host/root/"))
++        {
++          g_autofree char *extension = get_extension (exec->infile);
++          g_autofree char *name = extension
++            ? g_strconcat ("input.", extension, NULL)
++            : g_strdup ("input");
++          g_autoptr (GFile) input = g_file_new_for_path (exec->infile);
++
++          exec->infile_tmp = g_build_filename (exec->outdir, name, NULL);
++          g_autoptr (GFile) staged = g_file_new_for_path (exec->infile_tmp);
++          if (!g_file_copy (input, staged, G_FILE_COPY_NONE, NULL, NULL, NULL, error))
++            goto bail;
++
++          g_free (exec->infile);
++          exec->infile = g_strdup (exec->infile_tmp);
++        }
++
+       exec->outfile = g_build_filename (exec->outdir, "gnome-desktop-thumbnailer.png", NULL);
+     }
+   else if (exec->sandbox == SANDBOX_TYPE_NONE)
