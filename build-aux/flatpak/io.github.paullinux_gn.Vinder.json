@@ -181,6 +181,7 @@
             ".git",
             "subprojects/libgxdp",
             "vinder-icon.png",
+            "vinder-icon-mica.png",
             "vinder-icon-ocean.png",
             "vinder-icon-orchid.png",
             "vinder-icon-sunset.png"

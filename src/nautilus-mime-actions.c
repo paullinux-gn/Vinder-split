@@ -17,6 +17,8 @@
 #include <string.h>
 
 #include "nautilus-application.h"
+#include <glib/gstdio.h>
+
 #include "nautilus-enums.h"
 #include "nautilus-file.h"
 #include "nautilus-file-utilities.h"
@@ -1475,6 +1477,44 @@ application_unhandled_uri (ActivateParameters *parameters,
     }
 }
 
+static GFile *
+get_sandboxed_launch_file (const char *uri)
+{
+    const char *host_root = "/run/host/root";
+    g_autoptr (GFile) file = g_file_new_for_uri (uri);
+    const char *path = g_file_peek_path (file);
+
+    if (path != NULL && g_str_has_prefix (path, "/run/host/root/"))
+    {
+        const char *host_path = path + strlen (host_root);
+        g_autofree char *portal_path = NULL;
+        GStatBuf original_stat, portal_stat;
+
+        /* The OpenFile portal understands the standard /run/host/etc and
+         * /run/host/usr aliases, and paths shared at their original location. */
+        if (g_str_has_prefix (host_path, "/etc/") ||
+            g_str_has_prefix (host_path, "/usr/"))
+        {
+            portal_path = g_strconcat ("/run/host", host_path, NULL);
+        }
+        else
+        {
+            portal_path = g_strdup (host_path);
+        }
+
+        /* A sandbox path can refer to a different file with the same name. */
+        if (g_stat (path, &original_stat) == 0 &&
+            g_stat (portal_path, &portal_stat) == 0 &&
+            original_stat.st_dev == portal_stat.st_dev &&
+            original_stat.st_ino == portal_stat.st_ino)
+        {
+            return g_file_new_for_path (portal_path);
+        }
+    }
+
+    return g_steal_pointer (&file);
+}
+
 static void
 sandboxed_launcher_callback (GObject      *source_object,
                              GAsyncResult *res,
@@ -1496,7 +1536,7 @@ sandboxed_launcher_callback (GObject      *source_object,
     {
         /* Take next file off the queue to launch it. */
         const gchar *uri = g_queue_pop_head (activation_params->open_in_app_uris);
-        g_autoptr (GFile) location = g_file_new_for_uri (uri);
+        g_autoptr (GFile) location = get_sandboxed_launch_file (uri);
 
         gtk_file_launcher_set_file (launcher, location);
         gtk_file_launcher_launch (launcher,
@@ -1741,7 +1781,7 @@ activate_files_internal (ActivateParameters *parameters)
          * to launch the next one.
          */
         const gchar *uri = g_queue_pop_head (parameters->open_in_app_uris);
-        g_autoptr (GFile) location = g_file_new_for_uri (uri);
+        g_autoptr (GFile) location = get_sandboxed_launch_file (uri);
         g_autoptr (GtkFileLauncher) launcher = gtk_file_launcher_new (location);
 
         gtk_file_launcher_launch (launcher,

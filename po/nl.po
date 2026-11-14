@@ -4085,6 +4085,12 @@ msgstr "Ontkoppelen"
 msgid "Open %s"
 msgstr "Open %s"
 
+msgid "Computer"
+msgstr "Computer"
+
+msgid "Open the filesystem root"
+msgstr "De hoofdmap van het bestandssysteem openen"
+
 #: src/nautilus-sidebar.c:700
 msgid "Open Personal Folder"
 msgstr "Persoonlijke map openen"
@@ -6225,8 +6231,6 @@ msgstr "Sluiten"
 #~ msgid "Show Other Locations"
 #~ msgstr "Andere locaties tonen"
 
-#~ msgid "Computer"
-#~ msgstr "Computer"
 
 #~ msgid "No matches found in indexed locations"
 #~ msgstr "Geen resultaten gevonden op geïndexeerde locaties"

@@ -687,13 +687,25 @@ update_places (NautilusSidebar *sidebar)
 
     /* add built-in places */
 
+    /* The Flatpak host root is separate from the runtime's root. */
+    const char *computer_uri = nautilus_application_is_sandboxed () &&
+                               g_file_test ("/run/host/root", G_FILE_TEST_IS_DIR)
+                               ? "file:///run/host/root" : "file:///";
+    start_icon = g_themed_icon_new_with_default_fallbacks ("computer-symbolic");
+    add_place (sidebar, NAUTILUS_SIDEBAR_ROW_BUILT_IN,
+               NAUTILUS_SIDEBAR_SECTION_DEFAULT_LOCATIONS,
+               _("Computer"), start_icon, NULL, computer_uri,
+               NULL, NULL, NULL, NULL, 0,
+               _("Open the filesystem root"));
+    g_object_unref (start_icon);
+
     /* home folder */
     home_uri = get_home_directory_uri ();
     start_icon = g_themed_icon_new_with_default_fallbacks (ICON_NAME_HOME);
     add_place (sidebar, NAUTILUS_SIDEBAR_ROW_BUILT_IN,
                NAUTILUS_SIDEBAR_SECTION_DEFAULT_LOCATIONS,
                _("Home"), start_icon, NULL, home_uri,
-               NULL, NULL, NULL, NULL, 0,
+               NULL, NULL, NULL, NULL, 1,
                _("Open Personal Folder"));
     g_object_unref (start_icon);
     g_free (home_uri);
@@ -704,7 +716,7 @@ update_places (NautilusSidebar *sidebar)
         add_place (sidebar, NAUTILUS_SIDEBAR_ROW_BUILT_IN,
                    NAUTILUS_SIDEBAR_SECTION_DEFAULT_LOCATIONS,
                    _("Recent"), start_icon, NULL, SCHEME_RECENT ":///",
-                   NULL, NULL, NULL, NULL, 0,
+                   NULL, NULL, NULL, NULL, 1,
                    _("Recent Files"));
         g_object_unref (start_icon);
     }
@@ -713,7 +725,7 @@ update_places (NautilusSidebar *sidebar)
     add_place (sidebar, NAUTILUS_SIDEBAR_ROW_BUILT_IN,
                NAUTILUS_SIDEBAR_SECTION_DEFAULT_LOCATIONS,
                _("Starred"), start_icon, NULL, SCHEME_STARRED ":///",
-               NULL, NULL, NULL, NULL, 0,
+               NULL, NULL, NULL, NULL, 1,
                _("Starred Files"));
     g_object_unref (start_icon);
 
@@ -727,7 +739,7 @@ update_places (NautilusSidebar *sidebar)
             add_place (sidebar, NAUTILUS_SIDEBAR_ROW_BUILT_IN,
                        NAUTILUS_SIDEBAR_SECTION_DEFAULT_LOCATIONS,
                        _("Desktop"), start_icon, NULL, mount_uri,
-                       NULL, NULL, NULL, NULL, 0,
+                       NULL, NULL, NULL, NULL, 1,
                        _("Open the contents of your desktop in a folder"));
             g_object_unref (start_icon);
             g_free (mount_uri);
@@ -739,7 +751,7 @@ update_places (NautilusSidebar *sidebar)
     add_place (sidebar, NAUTILUS_SIDEBAR_ROW_BUILT_IN,
                NAUTILUS_SIDEBAR_SECTION_DEFAULT_LOCATIONS,
                _("Network"), start_icon, NULL, SCHEME_NETWORK_VIEW ":///",
-               NULL, NULL, NULL, NULL, 0,
+               NULL, NULL, NULL, NULL, 1,
                _("Open Network Locations"));
     g_object_unref (start_icon);
 
@@ -750,7 +762,7 @@ update_places (NautilusSidebar *sidebar)
         sidebar->trash_row = add_place (sidebar, NAUTILUS_SIDEBAR_ROW_BUILT_IN,
                                         NAUTILUS_SIDEBAR_SECTION_DEFAULT_LOCATIONS,
                                         _("Trash"), start_icon, NULL, SCHEME_TRASH ":///",
-                                        NULL, NULL, NULL, NULL, 0,
+                                        NULL, NULL, NULL, NULL, 1,
                                         _("Open Trash"));
         g_object_add_weak_pointer (G_OBJECT (sidebar->trash_row),
                                    (gpointer *) &sidebar->trash_row);
