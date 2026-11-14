@@ -32,10 +32,10 @@ Vinder builds on the work of the [GNOME Nautilus contributors](https://gitlab.gn
 
 ## Flatpak
 
-Download `Vinder-1.2-x86_64.flatpak` from the [GitHub release](https://github.com/paullinux-gn/vinder/releases/tag/v1.2). The bundle uses the GNOME 51 runtime from Flathub.
+Download `Vinder-1.3-x86_64.flatpak` from the [GitHub release](https://github.com/paullinux-gn/vinder/releases/tag/v1.3). The bundle uses the GNOME 51 runtime from Flathub.
 
 ```sh
-flatpak install --user Vinder-1.2-x86_64.flatpak
+flatpak install --user Vinder-1.3-x86_64.flatpak
 flatpak run io.github.paullinux_gn.Vinder
 ```
 
