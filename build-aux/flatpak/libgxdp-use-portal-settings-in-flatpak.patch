@@ -1,0 +1,16 @@
+diff --git a/subprojects/libgxdp/src/gxdp-wayland.c b/subprojects/libgxdp/src/gxdp-wayland.c
+--- a/subprojects/libgxdp/src/gxdp-wayland.c
++++ b/subprojects/libgxdp/src/gxdp-wayland.c
+@@ -290,7 +290,11 @@
+   init_x11_interop ();
+ 
+ #if GTK_CHECK_VERSION (4,20,0)
+-  init_settings ();
++  /* GTK gets the host desktop settings from the Settings portal in Flatpak. */
++  if (!g_file_test ("/.flatpak-info", G_FILE_TEST_EXISTS))
++    {
++      init_settings ();
++    }
+ #endif
+ 
+   return TRUE;

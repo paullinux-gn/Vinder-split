@@ -191,6 +191,10 @@
           "url": "https://gitlab.gnome.org/GNOME/libgxdp.git",
           "commit": "528966b82cfb8c276319aa1436d424b949a274e0",
           "dest": "subprojects/libgxdp"
+        },
+        {
+          "type": "patch",
+          "path": "libgxdp-use-portal-settings-in-flatpak.patch"
         }
       ]
     }
