@@ -24,6 +24,7 @@
 #include <gio/gunixmounts.h>
 #include <glib-unix.h>
 #include <glib/gi18n.h>
+#include <glib/gstdio.h>
 #include <gtk/gtk.h>
 #include <libportal/portal.h>
 #include <nautilus-extension.h>
@@ -1242,6 +1243,15 @@ static void
 nautilus_application_startup (GApplication *app)
 {
     NautilusApplication *self = NAUTILUS_APPLICATION (app);
+
+    /* Flatpak thumbnailers inherit our working directory, which may be
+     * outside their sandbox. Local options have already captured the caller's
+     * directory for resolving relative command-line paths.
+     */
+    if (g_file_test ("/.flatpak-info", G_FILE_TEST_EXISTS) && g_chdir ("/") != 0)
+    {
+        g_warning ("Could not change to the root directory for Flatpak thumbnailers");
+    }
 
     g_application_set_resource_base_path (G_APPLICATION (self), "/org/gnome/nautilus");
 
