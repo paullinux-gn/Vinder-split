@@ -770,6 +770,7 @@ update_blur (GSettings           *settings,
         {
             menu_css = g_strdup_printf (
                 "  .vinder-window popover > contents,"
+                "  .vinder-window .floating-bar,"
                 "  .vinder-window popover > arrow {"
                 "    backdrop-filter: blur(%dpx);"
                 "    background-color: color-mix(in srgb, var(--popover-bg-color) %d%%, transparent);"
@@ -780,6 +781,33 @@ update_blur (GSettings           *settings,
             "@media (prefers-contrast: no-preference) {"
             "  window.view.vinder-window { background-color: transparent; }"
             "  .vinder-content { background-color: var(--view-bg-color); }"
+            "  .vinder-content.scroll-animation {"
+            "    --vinder-header-tint: color-mix(in srgb, var(--headerbar-bg-color) %d%%, transparent);"
+            "  }"
+            "  .vinder-content.scroll-animation > .top-bar,"
+            "  .vinder-content.scroll-animation > .top-bar:backdrop,"
+            "  .vinder-content.scroll-animation .nautilus-list-view columnview > header {"
+            "    backdrop-filter: blur(%dpx);"
+            "    background: var(--vinder-header-tint);"
+            "    box-shadow: none;"
+            "  }"
+            "  .vinder-content.scroll-animation > .top-bar headerbar {"
+            "    background: transparent;"
+            "  }"
+            "  .vinder-content.scroll-animation .nautilus-grid-view gridview { padding-top: 66px; }"
+            "  .vinder-content.scroll-animation .nautilus-list-view columnview > listview {"
+            "    margin-top: -112px;"
+            "    padding-top: calc(112px + 16px);"
+            "  }"
+            "  .vinder-content.scroll-animation .nautilus-grid-view scrolledwindow > undershoot.top,"
+            "  .vinder-content.scroll-animation .nautilus-list-view scrolledwindow > undershoot.top {"
+            "    min-height: 84px;"
+            "    background: linear-gradient(to bottom,"
+            "      transparent 40px,"
+            "      var(--vinder-header-tint) 48px,"
+            "      color-mix(in srgb, var(--vinder-header-tint) 55%%, transparent) 60px,"
+            "      transparent);"
+            "  }"
             "  .vinder-split-view > .sidebar-pane,"
             "  .vinder-split-view > .overlay-pane {"
             "    backdrop-filter: blur(%dpx);"
@@ -800,7 +828,7 @@ update_blur (GSettings           *settings,
             "    --vinder-popup-bg: var(--dialog-bg-color);"
             "  }"
             "  %s"
-            "}", (int) strength, (int) opacity, (int) opacity,
+            "}", MIN ((int) opacity, 62), MIN ((int) strength, 18), (int) strength, (int) opacity, (int) opacity,
                  (int) strength, (int) opacity, menu_css != NULL ? menu_css : "");
     }
 
@@ -870,6 +898,8 @@ action_interface (GSimpleAction *action,
     GtkCheckButton *first = NULL;
     AdwSwitchRow *blur = ADW_SWITCH_ROW (adw_switch_row_new ());
     AdwSwitchRow *menu_blur = ADW_SWITCH_ROW (adw_switch_row_new ());
+    AdwSwitchRow *scroll_animation = ADW_SWITCH_ROW (adw_switch_row_new ());
+    AdwSwitchRow *pop_icons = ADW_SWITCH_ROW (adw_switch_row_new ());
 
     adw_dialog_set_title (dialog, _("Interface"));
     adw_dialog_set_content_width (dialog, 360);
@@ -890,6 +920,10 @@ action_interface (GSimpleAction *action,
         gtk_actionable_set_action_name (GTK_ACTIONABLE (choice), "app.vinder-appearance");
         adw_preferences_group_add (themes, GTK_WIDGET (choice));
     }
+    adw_preferences_row_set_title (ADW_PREFERENCES_ROW (pop_icons), _("Pop the Icons"));
+    g_settings_bind (nautilus_preferences, "vinder-pop-icons", pop_icons, "active",
+                     G_SETTINGS_BIND_DEFAULT);
+    adw_preferences_group_add (themes, GTK_WIDGET (pop_icons));
     adw_preferences_page_add (page, themes);
 
     adw_preferences_row_set_title (ADW_PREFERENCES_ROW (blur), _("Blur"));
@@ -900,6 +934,11 @@ action_interface (GSimpleAction *action,
                      G_SETTINGS_BIND_DEFAULT | G_SETTINGS_BIND_NO_SENSITIVITY);
     g_settings_bind (nautilus_preferences, "vinder-blur", menu_blur, "sensitive", G_SETTINGS_BIND_GET);
     adw_preferences_group_add (group, GTK_WIDGET (menu_blur));
+    adw_preferences_row_set_title (ADW_PREFERENCES_ROW (scroll_animation), _("Scroll Animation"));
+    g_settings_bind (nautilus_preferences, "vinder-scroll-animation", scroll_animation, "active",
+                     G_SETTINGS_BIND_DEFAULT | G_SETTINGS_BIND_NO_SENSITIVITY);
+    g_settings_bind (nautilus_preferences, "vinder-blur", scroll_animation, "sensitive", G_SETTINGS_BIND_GET);
+    adw_preferences_group_add (group, GTK_WIDGET (scroll_animation));
     adw_preferences_page_add (page, group);
 
     AdwPreferencesGroup *sliders = ADW_PREFERENCES_GROUP (adw_preferences_group_new ());

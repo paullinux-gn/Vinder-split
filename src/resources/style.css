@@ -159,13 +159,9 @@ window.devel.vinder-window toolbarview > .top-bar {
 /* Floating status bar */
 .floating-bar {
   padding: 3px;
-  background-color: var(--view-bg-color);
-  box-shadow: inset 0 100px 0 0 color-mix(in srgb, currentColor 10%, transparent);
+  background-color: var(--popover-bg-color);
+  color: var(--popover-fg-color);
   border-radius: 12px;
-}
-
-.floating-bar:backdrop {
-  background-color: @view_bg_color;
 }
 
 .floating-bar button {
@@ -340,12 +336,12 @@ placesview list {
   filter: drop-shadow(0px 1px 1px rgba(0,0,0,0.3));
 }
 
-.nautilus-grid-view .nautilus-image:not(.file-thumbnail) {
+.vinder-content.pop-icons .nautilus-grid-view .nautilus-image:not(.file-thumbnail) {
   filter: drop-shadow(0px 1px 1px rgba(0,0,0,0.25))
           drop-shadow(0px 5px 5px rgba(0,0,0,0.42));
 }
 
-.nautilus-list-view .nautilus-image:not(.file-thumbnail) {
+.vinder-content.pop-icons .nautilus-list-view .nautilus-image:not(.file-thumbnail) {
   filter: drop-shadow(0px 1px 1px rgba(0,0,0,0.25))
           drop-shadow(0px 3px 3px rgba(0,0,0,0.42));
 }
@@ -361,13 +357,13 @@ placesview list {
   filter: none;
 }
 
-.nautilus-grid-view .nautilus-image.file-thumbnail {
+.vinder-content.pop-icons .nautilus-grid-view .nautilus-image.file-thumbnail {
   box-shadow: 0px 0px 0px 1px var(--shade-color),
               0px 1px 2px rgba(0,0,0,0.25),
               0px 5px 8px rgba(0,0,0,0.42);
 }
 
-.nautilus-list-view .nautilus-image.file-thumbnail {
+.vinder-content.pop-icons .nautilus-list-view .nautilus-image.file-thumbnail {
   box-shadow: 0px 0px 0px 1px var(--shade-color),
               0px 1px 2px rgba(0,0,0,0.25),
               0px 3px 5px rgba(0,0,0,0.42);

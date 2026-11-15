@@ -86,6 +86,14 @@
       <default>true</default>
       <summary>Blur menus when interface blur is enabled</summary>
     </key>
+    <key name="vinder-scroll-animation" type="b">
+      <default>false</default>
+      <summary>Blur files scrolling beneath the header bar when interface blur is enabled</summary>
+    </key>
+    <key name="vinder-pop-icons" type="b">
+      <default>false</default>
+      <summary>Show stronger shadows on icons and thumbnails in the file pane</summary>
+    </key>
     <key name="vinder-blur-reminder-seen" type="b">
       <default>false</default>
       <summary>Whether the sidebar blur reminder was shown</summary>

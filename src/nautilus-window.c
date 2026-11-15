@@ -75,6 +75,7 @@ struct _NautilusWindow
     NautilusWindowSlot *active_slot; /* weak reference */
 
     GtkWidget *split_view;
+    AdwToolbarView *files_toolbar_view;
 
     /* Side Pane */
     NautilusSidebar *places_sidebar;
@@ -1078,6 +1079,39 @@ static const GActionEntry win_entries[] =
 };
 
 static void
+update_files_header_blur (NautilusWindow *window)
+{
+    gboolean enabled = g_settings_get_boolean (nautilus_preferences, "vinder-blur") &&
+                       g_settings_get_boolean (nautilus_preferences, "vinder-scroll-animation") &&
+                       !adw_style_manager_get_high_contrast (adw_style_manager_get_default ());
+
+    if (enabled)
+    {
+        gtk_widget_add_css_class (GTK_WIDGET (window->files_toolbar_view), "scroll-animation");
+    }
+    else
+    {
+        gtk_widget_remove_css_class (GTK_WIDGET (window->files_toolbar_view), "scroll-animation");
+    }
+    adw_toolbar_view_set_extend_content_to_top_edge (window->files_toolbar_view, enabled);
+}
+
+static void
+update_file_icon_shadows (NautilusWindow *window)
+{
+    GtkWidget *files_toolbar_view = GTK_WIDGET (window->files_toolbar_view);
+
+    if (g_settings_get_boolean (nautilus_preferences, "vinder-pop-icons"))
+    {
+        gtk_widget_add_css_class (files_toolbar_view, "pop-icons");
+    }
+    else
+    {
+        gtk_widget_remove_css_class (files_toolbar_view, "pop-icons");
+    }
+}
+
+static void
 nautilus_window_initialize_actions (NautilusWindow *window)
 {
     GApplication *app;
@@ -1503,6 +1537,18 @@ nautilus_window_init (NautilusWindow *window)
     g_type_ensure (NAUTILUS_TYPE_SHORTCUT_MANAGER);
     gtk_widget_init_template (GTK_WIDGET (window));
 
+    g_signal_connect_object (nautilus_preferences, "changed::vinder-blur",
+                             G_CALLBACK (update_files_header_blur), window, G_CONNECT_SWAPPED);
+    g_signal_connect_object (nautilus_preferences, "changed::vinder-scroll-animation",
+                             G_CALLBACK (update_files_header_blur), window, G_CONNECT_SWAPPED);
+    g_signal_connect_object (adw_style_manager_get_default (), "notify::high-contrast",
+                             G_CALLBACK (update_files_header_blur), window, G_CONNECT_SWAPPED);
+    update_files_header_blur (window);
+
+    g_signal_connect_object (nautilus_preferences, "changed::vinder-pop-icons",
+                             G_CALLBACK (update_file_icon_shadows), window, G_CONNECT_SWAPPED);
+    update_file_icon_shadows (window);
+
     g_signal_connect (window, "notify::maximized",
                       G_CALLBACK (on_is_maximized_changed), NULL);
 
@@ -1621,6 +1667,7 @@ nautilus_window_class_init (NautilusWindowClass *class)
     gtk_widget_class_bind_template_child (wclass, NautilusWindow, undo_redo_section);
     gtk_widget_class_bind_template_child (wclass, NautilusWindow, toolbar);
     gtk_widget_class_bind_template_child (wclass, NautilusWindow, split_view);
+    gtk_widget_class_bind_template_child (wclass, NautilusWindow, files_toolbar_view);
     gtk_widget_class_bind_template_child (wclass, NautilusWindow, places_sidebar);
     gtk_widget_class_bind_template_child (wclass, NautilusWindow, toast_overlay);
     gtk_widget_class_bind_template_child (wclass, NautilusWindow, tab_overview);

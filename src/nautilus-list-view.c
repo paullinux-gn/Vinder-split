@@ -36,6 +36,8 @@ struct _NautilusListView
     NautilusListBase parent_instance;
 
     GtkColumnView *view_ui;
+    GtkWidget *column_header;
+    AdwToolbarView *files_toolbar_view;
 
     NautilusSearchDirectory *search_directory;
 
@@ -363,6 +365,18 @@ create_view_ui (NautilusListView *self)
     g_autoptr (GtkListItemFactory) row_factory = gtk_signal_list_item_factory_new ();
 
     widget = gtk_column_view_new (NULL);
+
+    /* Keep the column headings above the rows when Scroll Animation allows
+     * rows to pass behind them. Identify the GTK children by CSS node name. */
+    GtkWidget *header = gtk_widget_get_first_child (widget);
+    GtkWidget *list = gtk_widget_get_last_child (widget);
+
+    if (header != NULL && GTK_IS_LIST_VIEW (list) &&
+        g_str_equal (gtk_widget_get_css_name (header), "header"))
+    {
+        gtk_widget_insert_after (header, widget, list);
+        self->column_header = header;
+    }
 
     gtk_widget_set_hexpand (widget, TRUE);
 
@@ -1180,13 +1194,62 @@ nautilus_list_view_finalize (GObject *object)
 }
 
 static void
+update_column_header_offset (NautilusListView *self)
+{
+    AdwToolbarView *toolbar = self->files_toolbar_view;
+    int offset = adw_toolbar_view_get_extend_content_to_top_edge (toolbar)
+                 ? adw_toolbar_view_get_top_bar_height (toolbar)
+                 : 0;
+
+    gtk_widget_set_margin_top (self->column_header, offset);
+}
+
+static void
+nautilus_list_view_root (GtkWidget *widget)
+{
+    NautilusListView *self = NAUTILUS_LIST_VIEW (widget);
+    GtkWidget *toolbar = gtk_widget_get_ancestor (widget, ADW_TYPE_TOOLBAR_VIEW);
+
+    GTK_WIDGET_CLASS (nautilus_list_view_parent_class)->root (widget);
+
+    if (self->column_header != NULL && toolbar != NULL &&
+        gtk_widget_has_css_class (toolbar, "vinder-content"))
+    {
+        self->files_toolbar_view = ADW_TOOLBAR_VIEW (toolbar);
+        g_signal_connect_swapped (toolbar, "notify::top-bar-height",
+                                  G_CALLBACK (update_column_header_offset), self);
+        g_signal_connect_swapped (toolbar, "notify::extend-content-to-top-edge",
+                                  G_CALLBACK (update_column_header_offset), self);
+        update_column_header_offset (self);
+    }
+}
+
+static void
+nautilus_list_view_unroot (GtkWidget *widget)
+{
+    NautilusListView *self = NAUTILUS_LIST_VIEW (widget);
+
+    if (self->files_toolbar_view != NULL)
+    {
+        g_signal_handlers_disconnect_by_func (self->files_toolbar_view, update_column_header_offset, self);
+        self->files_toolbar_view = NULL;
+        gtk_widget_set_margin_top (self->column_header, 0);
+    }
+
+    GTK_WIDGET_CLASS (nautilus_list_view_parent_class)->unroot (widget);
+}
+
+static void
 nautilus_list_view_class_init (NautilusListViewClass *klass)
 {
     GObjectClass *object_class = G_OBJECT_CLASS (klass);
+    GtkWidgetClass *widget_class = GTK_WIDGET_CLASS (klass);
     NautilusListBaseClass *list_base_view_class = NAUTILUS_LIST_BASE_CLASS (klass);
 
     object_class->dispose = nautilus_list_view_dispose;
     object_class->finalize = nautilus_list_view_finalize;
+    widget_class->root = nautilus_list_view_root;
+    widget_class->unroot = nautilus_list_view_unroot;
 
     list_base_view_class->get_backing_item = real_get_backing_item;
     list_base_view_class->get_icon_size = real_get_icon_size;
