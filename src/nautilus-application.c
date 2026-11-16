@@ -88,6 +88,7 @@ struct _NautilusApplication
 
     NautilusWindow *last_active_window;
     GtkCssProvider *blur_provider;
+    GtkCssProvider *icon_shadow_provider;
 };
 
 G_DEFINE_FINAL_TYPE (NautilusApplication, nautilus_application, ADW_TYPE_APPLICATION)
@@ -460,6 +461,7 @@ nautilus_application_finalize (GObject *object)
     g_clear_object (&self->progress_handler);
     g_clear_object (&self->bookmark_list);
     g_clear_object (&self->blur_provider);
+    g_clear_object (&self->icon_shadow_provider);
 
     g_clear_weak_pointer (&self->last_active_window);
 
@@ -860,10 +862,23 @@ change_blur (GSimpleAction *action,
 }
 
 static void
-add_blur_slider (AdwPreferencesGroup *group,
-                 const char          *title,
-                 const char          *key,
-                 int                  maximum)
+update_icon_shadow_strength (GSettings           *settings,
+                             const char          *key,
+                             NautilusApplication *self)
+{
+    int strength = (int) g_settings_get_double (settings, "vinder-icon-shadow-strength");
+    g_autofree char *css = g_strdup_printf (
+        ".vinder-content.pop-icons { --vinder-icon-shadow-strength: %d%%;"
+        " --vinder-icon-shadow-lift: %d; }", strength, strength);
+
+    gtk_css_provider_load_from_string (self->icon_shadow_provider, css);
+}
+
+static GtkWidget *
+add_interface_slider (AdwPreferencesGroup *group,
+                      const char          *title,
+                      const char          *key,
+                      int                  maximum)
 {
     AdwActionRow *row = ADW_ACTION_ROW (adw_action_row_new ());
     GtkWidget *scale = gtk_scale_new_with_range (GTK_ORIENTATION_HORIZONTAL, 0, maximum, 1);
@@ -880,6 +895,8 @@ add_blur_slider (AdwPreferencesGroup *group,
                      G_SETTINGS_BIND_DEFAULT | G_SETTINGS_BIND_NO_SENSITIVITY);
     adw_action_row_add_suffix (row, scale);
     adw_preferences_group_add (group, GTK_WIDGET (row));
+
+    return GTK_WIDGET (row);
 }
 
 static void
@@ -924,6 +941,10 @@ action_interface (GSimpleAction *action,
     g_settings_bind (nautilus_preferences, "vinder-pop-icons", pop_icons, "active",
                      G_SETTINGS_BIND_DEFAULT);
     adw_preferences_group_add (themes, GTK_WIDGET (pop_icons));
+    GtkWidget *shadow_strength = add_interface_slider (themes, _("Shadow Strength (%)"),
+                                                       "vinder-icon-shadow-strength", 100);
+    g_settings_bind (nautilus_preferences, "vinder-pop-icons", shadow_strength, "visible",
+                     G_SETTINGS_BIND_GET);
     adw_preferences_page_add (page, themes);
 
     adw_preferences_row_set_title (ADW_PREFERENCES_ROW (blur), _("Blur"));
@@ -943,8 +964,8 @@ action_interface (GSimpleAction *action,
 
     AdwPreferencesGroup *sliders = ADW_PREFERENCES_GROUP (adw_preferences_group_new ());
 
-    add_blur_slider (sliders, _("Opacity (%)"), "vinder-blur-opacity", 100);
-    add_blur_slider (sliders, _("Blur Strength"), "vinder-blur-strength", 40);
+    add_interface_slider (sliders, _("Opacity (%)"), "vinder-blur-opacity", 100);
+    add_interface_slider (sliders, _("Blur Strength"), "vinder-blur-strength", 40);
     g_settings_bind (nautilus_preferences, "vinder-blur", sliders, "sensitive", G_SETTINGS_BIND_GET);
     adw_preferences_page_add (page, sliders);
     adw_preferences_dialog_add (ADW_PREFERENCES_DIALOG (dialog), page);
@@ -1361,6 +1382,14 @@ nautilus_application_startup (GApplication *app)
                                  G_CALLBACK (update_blur), self, 0);
     }
     update_blur (nautilus_preferences, NULL, self);
+
+    self->icon_shadow_provider = gtk_css_provider_new ();
+    gtk_style_context_add_provider_for_display (gdk_display_get_default (),
+                                                GTK_STYLE_PROVIDER (self->icon_shadow_provider),
+                                                GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
+    g_signal_connect_object (nautilus_preferences, "changed::vinder-icon-shadow-strength",
+                             G_CALLBACK (update_icon_shadow_strength), self, 0);
+    update_icon_shadow_strength (nautilus_preferences, NULL, self);
 
     g_signal_connect (self, "shutdown", G_CALLBACK (on_application_shutdown), NULL);
 

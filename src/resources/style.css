@@ -336,14 +336,25 @@ placesview list {
   filter: drop-shadow(0px 1px 1px rgba(0,0,0,0.3));
 }
 
+.vinder-content.pop-icons {
+  --vinder-grid-shadow-offset: calc(9px * var(--vinder-icon-shadow-lift) / 100);
+  --vinder-list-shadow-offset: calc(5px * var(--vinder-icon-shadow-lift) / 100);
+  --vinder-grid-thumbnail-shadow-blur: calc(12px * var(--vinder-icon-shadow-lift) / 100);
+  --vinder-extra-icon-shadow: color-mix(in srgb, transparent, rgba(0,0,0,0.56) var(--vinder-icon-shadow-strength));
+  --vinder-icon-contact-shadow: color-mix(in srgb, rgba(0,0,0,0.3), rgba(0,0,0,0.25) var(--vinder-icon-shadow-strength));
+  --vinder-thumbnail-contact-shadow: color-mix(in srgb, transparent, rgba(0,0,0,0.25) var(--vinder-icon-shadow-strength));
+  --vinder-thumbnail-base-shadow: color-mix(in srgb, rgba(0,0,0,0.18), transparent var(--vinder-icon-shadow-strength));
+  --vinder-thumbnail-base-shade: color-mix(in srgb, var(--shade-color), transparent var(--vinder-icon-shadow-strength));
+}
+
 .vinder-content.pop-icons .nautilus-grid-view .nautilus-image:not(.file-thumbnail) {
-  filter: drop-shadow(0px 1px 1px rgba(0,0,0,0.25))
-          drop-shadow(0px 5px 5px rgba(0,0,0,0.42));
+  filter: drop-shadow(0px 1px 1px var(--vinder-icon-contact-shadow))
+          drop-shadow(0px var(--vinder-grid-shadow-offset) var(--vinder-grid-shadow-offset) var(--vinder-extra-icon-shadow));
 }
 
 .vinder-content.pop-icons .nautilus-list-view .nautilus-image:not(.file-thumbnail) {
-  filter: drop-shadow(0px 1px 1px rgba(0,0,0,0.25))
-          drop-shadow(0px 3px 3px rgba(0,0,0,0.42));
+  filter: drop-shadow(0px 1px 1px var(--vinder-icon-contact-shadow))
+          drop-shadow(0px var(--vinder-list-shadow-offset) var(--vinder-list-shadow-offset) var(--vinder-extra-icon-shadow));
 }
 
 .nautilus-image.file-thumbnail {
@@ -358,15 +369,19 @@ placesview list {
 }
 
 .vinder-content.pop-icons .nautilus-grid-view .nautilus-image.file-thumbnail {
-  box-shadow: 0px 0px 0px 1px var(--shade-color),
-              0px 1px 2px rgba(0,0,0,0.25),
-              0px 5px 8px rgba(0,0,0,0.42);
+  box-shadow: 0px 1px 1px 1px var(--vinder-thumbnail-base-shadow),
+              0px 0px 0px 1px var(--shade-color),
+              0px 2px 0px 0px var(--vinder-thumbnail-base-shade),
+              0px 1px 2px var(--vinder-thumbnail-contact-shadow),
+              0px var(--vinder-grid-shadow-offset) var(--vinder-grid-thumbnail-shadow-blur) var(--vinder-extra-icon-shadow);
 }
 
 .vinder-content.pop-icons .nautilus-list-view .nautilus-image.file-thumbnail {
-  box-shadow: 0px 0px 0px 1px var(--shade-color),
-              0px 1px 2px rgba(0,0,0,0.25),
-              0px 3px 5px rgba(0,0,0,0.42);
+  box-shadow: 0px 1px 1px 1px var(--vinder-thumbnail-base-shadow),
+              0px 0px 0px 1px var(--shade-color),
+              0px 2px 0px 0px var(--vinder-thumbnail-base-shade),
+              0px 1px 2px var(--vinder-thumbnail-contact-shadow),
+              0px var(--vinder-list-shadow-offset) var(--vinder-grid-shadow-offset) var(--vinder-extra-icon-shadow);
 }
 
 .nautilus-network-view {
