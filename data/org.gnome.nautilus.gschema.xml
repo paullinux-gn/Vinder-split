@@ -90,6 +90,10 @@
       <default>false</default>
       <summary>Blur files scrolling beneath the header bar when interface blur is enabled</summary>
     </key>
+    <key name="vinder-zebra-rows" type="b">
+      <default>false</default>
+      <summary>Shade alternating rows in list view</summary>
+    </key>
     <key name="vinder-pop-icons" type="b">
       <default>false</default>
       <summary>Show stronger shadows on icons and thumbnails in the file pane</summary>

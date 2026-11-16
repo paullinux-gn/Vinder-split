@@ -945,6 +945,11 @@ action_interface (GSimpleAction *action,
                                                        "vinder-icon-shadow-strength", 100);
     g_settings_bind (nautilus_preferences, "vinder-pop-icons", shadow_strength, "visible",
                      G_SETTINGS_BIND_GET);
+    AdwSwitchRow *zebra_rows = ADW_SWITCH_ROW (adw_switch_row_new ());
+    adw_preferences_row_set_title (ADW_PREFERENCES_ROW (zebra_rows), _("Alternating List Row Colors"));
+    g_settings_bind (nautilus_preferences, "vinder-zebra-rows", zebra_rows, "active",
+                     G_SETTINGS_BIND_DEFAULT);
+    adw_preferences_group_add (themes, GTK_WIDGET (zebra_rows));
     adw_preferences_page_add (page, themes);
 
     adw_preferences_row_set_title (ADW_PREFERENCES_ROW (blur), _("Blur"));

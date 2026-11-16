@@ -249,6 +249,10 @@ window.devel.vinder-window toolbarview > .top-bar {
   border-radius: 9px;
 }
 
+.vinder-content.zebra-rows .nautilus-list-view columnview > listview > row:nth-child(even):not(:selected):not(:hover):not(:drop(active)) {
+  background-color: color-mix(in srgb, var(--view-fg-color) 4%, transparent);
+}
+
 @media (prefers-contrast: more) {
   .nautilus-list-view columnview > listview > row.activatable:hover,
   .nautilus-grid-view gridview > child.activatable:hover {

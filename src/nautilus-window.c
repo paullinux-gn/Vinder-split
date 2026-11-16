@@ -1097,6 +1097,21 @@ update_files_header_blur (NautilusWindow *window)
 }
 
 static void
+update_zebra_rows (NautilusWindow *window)
+{
+    GtkWidget *view = GTK_WIDGET (window->files_toolbar_view);
+
+    if (g_settings_get_boolean (nautilus_preferences, "vinder-zebra-rows"))
+    {
+        gtk_widget_add_css_class (view, "zebra-rows");
+    }
+    else
+    {
+        gtk_widget_remove_css_class (view, "zebra-rows");
+    }
+}
+
+static void
 update_file_icon_shadows (NautilusWindow *window)
 {
     GtkWidget *files_toolbar_view = GTK_WIDGET (window->files_toolbar_view);
@@ -1548,6 +1563,10 @@ nautilus_window_init (NautilusWindow *window)
     g_signal_connect_object (nautilus_preferences, "changed::vinder-pop-icons",
                              G_CALLBACK (update_file_icon_shadows), window, G_CONNECT_SWAPPED);
     update_file_icon_shadows (window);
+
+    g_signal_connect_object (nautilus_preferences, "changed::vinder-zebra-rows",
+                             G_CALLBACK (update_zebra_rows), window, G_CONNECT_SWAPPED);
+    update_zebra_rows (window);
 
     g_signal_connect (window, "notify::maximized",
                       G_CALLBACK (on_is_maximized_changed), NULL);
