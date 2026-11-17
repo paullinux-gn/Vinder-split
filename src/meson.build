@@ -61,6 +61,8 @@ libnautilus_sources = [
   'nautilus-app-chooser-widget.c',
   'nautilus-app-chooser-widget.h',
   'nautilus-application.c',
+  'vinder-interface.c',
+  'vinder-thumbnail-preparation.c',
   'nautilus-application.h',
   'nautilus-batch-rename-dialog.c',
   'nautilus-batch-rename-dialog.h',

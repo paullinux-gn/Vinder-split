@@ -43,6 +43,54 @@ window.devel.vinder-window toolbarview > .top-bar {
   color: var(--popover-fg-color);
 }
 
+/* Experimental translucent backgrounds for sidebar sections. */
+.navigation-sidebar.vinder-sidebar-frames {
+  --vinder-section-background: rgb(0 0 0 / 7%);
+}
+
+.navigation-sidebar.vinder-sidebar-frames > separator {
+  opacity: 0;
+  min-height: 8px;
+}
+
+.navigation-sidebar.vinder-sidebar-frames > row,
+.navigation-sidebar.vinder-sidebar-frames > row:hover,
+.navigation-sidebar.vinder-sidebar-frames > row:selected,
+.navigation-sidebar.vinder-sidebar-frames > row:drop(active) {
+  margin: 0 9px;
+  padding: 0 9px;
+  box-shadow: none;
+  border-radius: 0;
+  background: var(--vinder-section-background);
+}
+
+.navigation-sidebar.vinder-sidebar-frames > row.section-start {
+  padding-top: 7px;
+  border-top-left-radius: 10px;
+  border-top-right-radius: 10px;
+}
+
+.navigation-sidebar.vinder-sidebar-frames > row.section-end,
+.navigation-sidebar.vinder-sidebar-frames > row:last-child {
+  padding-bottom: 7px;
+  border-bottom-left-radius: 10px;
+  border-bottom-right-radius: 10px;
+}
+
+.navigation-sidebar.vinder-sidebar-frames > row > .sidebar-revealer {
+  padding: 4px 8px;
+  border-radius: 8px;
+}
+
+.navigation-sidebar.vinder-sidebar-frames > row:hover > .sidebar-revealer {
+  background-color: color-mix(in srgb, var(--sidebar-fg-color) 8%, transparent);
+}
+
+.navigation-sidebar.vinder-sidebar-frames > row:selected > .sidebar-revealer,
+.navigation-sidebar.vinder-sidebar-frames > row:drop(active) > .sidebar-revealer {
+  background-color: color-mix(in srgb, var(--sidebar-fg-color) 14%, transparent);
+}
+
 /* Toolbar */
 
 @keyframes needs_attention_keyframes {
@@ -250,7 +298,13 @@ window.devel.vinder-window toolbarview > .top-bar {
 }
 
 .vinder-content.zebra-rows .nautilus-list-view columnview > listview > row:nth-child(even):not(:selected):not(:hover):not(:drop(active)) {
-  background-color: color-mix(in srgb, var(--view-fg-color) 4%, transparent);
+  background-color: color-mix(in srgb, var(--view-fg-color) var(--vinder-zebra-strength, 4%), transparent);
+}
+
+@media (prefers-color-scheme: light) {
+  .vinder-content.zebra-rows {
+    --vinder-zebra-strength: 8%;
+  }
 }
 
 @media (prefers-contrast: more) {

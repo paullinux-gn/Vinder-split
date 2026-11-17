@@ -74,6 +74,7 @@ src/nautilus-ui-utilities.c
 src/nautilus-vfs-file.c
 src/nautilus-view-controls.c
 src/nautilus-window.c
+src/vinder-interface.c
 src/nautilus-window-slot.c
 src/nautilus-x-content-bar.c
 src/resources/menu/nautilus-files-view-context-menus.ui
