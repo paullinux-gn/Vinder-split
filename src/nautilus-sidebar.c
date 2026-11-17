@@ -321,6 +321,41 @@ emit_drag_perform_drop (NautilusSidebar *sidebar,
                    dest_file, source_file_list, action);
 }
 static void
+update_last_visible_row (GtkListBox *list_box)
+{
+    GtkWidget *last_visible = NULL;
+
+    for (int i = 0; ; i++)
+    {
+        GtkWidget *row = GTK_WIDGET (gtk_list_box_get_row_at_index (list_box, i));
+
+        if (row == NULL)
+        {
+            break;
+        }
+
+        gtk_widget_remove_css_class (row, "last-visible-row");
+        if (gtk_widget_get_visible (row))
+        {
+            last_visible = row;
+        }
+    }
+
+    if (last_visible != NULL)
+    {
+        gtk_widget_add_css_class (last_visible, "last-visible-row");
+    }
+}
+
+static void
+on_sidebar_row_visibility_changed (GtkWidget  *row,
+                                   GParamSpec *pspec,
+                                   GtkListBox *list_box)
+{
+    update_last_visible_row (list_box);
+}
+
+static void
 list_box_header_func (GtkListBoxRow *row,
                       GtkListBoxRow *before,
                       gpointer       user_data)
@@ -449,7 +484,16 @@ add_place (NautilusSidebar           *sidebar,
                       G_CALLBACK (on_row_dragged), row);
     gtk_widget_add_controller (row, GTK_EVENT_CONTROLLER (gesture));
 
+    if (g_strcmp0 (uri, SCHEME_RECENT ":///") == 0 ||
+        g_strcmp0 (uri, SCHEME_TRASH ":///") == 0)
+    {
+        gtk_widget_add_css_class (row, "vinder-sidebar-divider");
+    }
+
     gtk_list_box_insert (GTK_LIST_BOX (sidebar->list_box), GTK_WIDGET (row), -1);
+    g_signal_connect_object (row, "notify::visible",
+                             G_CALLBACK (on_sidebar_row_visibility_changed),
+                             sidebar->list_box, 0);
 
     return row;
 }
@@ -1129,6 +1173,7 @@ update_places (NautilusSidebar *sidebar)
 
     /* We want this hidden by default, but need to do it after the show_all call */
     nautilus_sidebar_row_hide (NAUTILUS_SIDEBAR_ROW (sidebar->new_bookmark_row), TRUE);
+    update_last_visible_row (GTK_LIST_BOX (sidebar->list_box));
 
     /* restore original selection */
     if (original_uri)

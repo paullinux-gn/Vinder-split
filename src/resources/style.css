@@ -48,6 +48,16 @@ window.devel.vinder-window toolbarview > .top-bar {
   --vinder-section-background: rgb(0 0 0 / 7%);
 }
 
+@media (prefers-color-scheme: dark) {
+  .navigation-sidebar.vinder-sidebar-frames {
+    --vinder-section-background: rgb(0 0 0 / 18%);
+  }
+}
+
+.vinder-dark-and-light .navigation-sidebar.vinder-sidebar-frames {
+  --vinder-section-background: rgb(0 0 0 / 18%);
+}
+
 .navigation-sidebar.vinder-sidebar-frames > separator {
   opacity: 0;
   min-height: 8px;
@@ -71,10 +81,20 @@ window.devel.vinder-window toolbarview > .top-bar {
 }
 
 .navigation-sidebar.vinder-sidebar-frames > row.section-end,
-.navigation-sidebar.vinder-sidebar-frames > row:last-child {
+.navigation-sidebar.vinder-sidebar-frames > row.last-visible-row {
   padding-bottom: 7px;
   border-bottom-left-radius: 10px;
   border-bottom-right-radius: 10px;
+}
+
+/* Draw the divider over the panel fill, with an 8px inset on either side. */
+.navigation-sidebar.vinder-sidebar-frames > row.vinder-sidebar-divider:not(.section-start) {
+  --vinder-sidebar-divider-color: color-mix(in srgb, var(--sidebar-fg-color) 18%, transparent);
+  background-image: linear-gradient(var(--vinder-sidebar-divider-color), var(--vinder-sidebar-divider-color));
+  background-origin: border-box;
+  background-position: center top;
+  background-repeat: no-repeat;
+  background-size: calc(100% - 16px) 1px;
 }
 
 .navigation-sidebar.vinder-sidebar-frames > row > .sidebar-revealer {
@@ -305,6 +325,10 @@ window.devel.vinder-window toolbarview > .top-bar {
   .vinder-content.zebra-rows {
     --vinder-zebra-strength: 8%;
   }
+}
+
+.vinder-dark-and-light .vinder-content.zebra-rows {
+  --vinder-zebra-strength: 8%;
 }
 
 @media (prefers-contrast: more) {
