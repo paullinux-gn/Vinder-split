@@ -341,10 +341,25 @@ list_box_header_func (GtkListBoxRow *row,
         before_section_type = NAUTILUS_SIDEBAR_SECTION_INVALID;
     }
 
-    if (before && before_section_type != row_section_type)
+    gboolean starts_section = before == NULL ||
+                               before_section_type != row_section_type ||
+                               gtk_widget_has_css_class (GTK_WIDGET (before), "vinder-computer-row");
+
+    gtk_widget_remove_css_class (GTK_WIDGET (row), "section-start");
+    if (before != NULL)
     {
-        separator = gtk_separator_new (GTK_ORIENTATION_HORIZONTAL);
-        gtk_list_box_row_set_header (row, separator);
+        gtk_widget_remove_css_class (GTK_WIDGET (before), "section-end");
+        if (starts_section)
+        {
+            gtk_widget_add_css_class (GTK_WIDGET (before), "section-end");
+            separator = gtk_separator_new (GTK_ORIENTATION_HORIZONTAL);
+            gtk_list_box_row_set_header (row, separator);
+        }
+    }
+
+    if (starts_section)
+    {
+        gtk_widget_add_css_class (GTK_WIDGET (row), "section-start");
     }
 }
 
@@ -692,11 +707,12 @@ update_places (NautilusSidebar *sidebar)
                                g_file_test ("/run/host/root", G_FILE_TEST_IS_DIR)
                                ? "file:///run/host/root" : "file:///";
     start_icon = g_themed_icon_new_with_default_fallbacks ("computer-symbolic");
-    add_place (sidebar, NAUTILUS_SIDEBAR_ROW_BUILT_IN,
-               NAUTILUS_SIDEBAR_SECTION_DEFAULT_LOCATIONS,
-               _("Computer"), start_icon, NULL, computer_uri,
-               NULL, NULL, NULL, NULL, 0,
-               _("Open the filesystem root"));
+    GtkWidget *computer_row = add_place (sidebar, NAUTILUS_SIDEBAR_ROW_BUILT_IN,
+                                        NAUTILUS_SIDEBAR_SECTION_DEFAULT_LOCATIONS,
+                                        _("Computer"), start_icon, NULL, computer_uri,
+                                        NULL, NULL, NULL, NULL, 0,
+                                        _("Open the filesystem root"));
+    gtk_widget_add_css_class (computer_row, "vinder-computer-row");
     g_object_unref (start_icon);
 
     /* home folder */
@@ -3513,6 +3529,8 @@ nautilus_sidebar_init (NautilusSidebar *sidebar)
     /* list box */
     sidebar->list_box = gtk_list_box_new ();
     gtk_widget_add_css_class (sidebar->list_box, "navigation-sidebar");
+    /* Remove this class to restore the original sidebar styling. */
+    gtk_widget_add_css_class (sidebar->list_box, "vinder-sidebar-frames");
 
     gtk_list_box_set_header_func (GTK_LIST_BOX (sidebar->list_box),
                                   list_box_header_func, sidebar, NULL);
