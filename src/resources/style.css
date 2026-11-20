@@ -3,6 +3,21 @@ window.devel.vinder-window toolbarview > .top-bar {
   background-image: none;
 }
 
+/* Inset file surface, surrounded by the sidebar palette. */
+.vinder-content-surround {
+  background-color: var(--sidebar-bg-color);
+}
+
+.vinder-content-surround:backdrop {
+  background-color: var(--sidebar-backdrop-color);
+}
+
+.vinder-content-card {
+  border-radius: 14px;
+  background-color: var(--view-bg-color);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 10%);
+}
+
 /* Mixed appearance uses Adwaita dark, with a light palette on the file side. */
 .vinder-dark-and-light .vinder-content {
   --window-bg-color: #fafafb;
@@ -58,6 +73,13 @@ window.devel.vinder-window toolbarview > .top-bar {
   --vinder-section-background: rgb(0 0 0 / 18%);
 }
 
+.navigation-sidebar > .vinder-places-caption {
+  margin: 8px 9px;
+  font-size: 0.8em;
+  font-weight: bold;
+  opacity: 0.7;
+}
+
 .navigation-sidebar.vinder-sidebar-frames > separator {
   opacity: 0;
   min-height: 8px;
@@ -89,10 +111,11 @@ window.devel.vinder-window toolbarview > .top-bar {
 
 /* Draw the divider over the panel fill, with an 8px inset on either side. */
 .navigation-sidebar.vinder-sidebar-frames > row.vinder-sidebar-divider:not(.section-start) {
-  --vinder-sidebar-divider-color: color-mix(in srgb, var(--sidebar-fg-color) 18%, transparent);
+  --vinder-sidebar-divider-color: color-mix(in srgb, var(--sidebar-fg-color) 12%, transparent);
   background-image: linear-gradient(var(--vinder-sidebar-divider-color), var(--vinder-sidebar-divider-color));
   background-origin: border-box;
-  background-position: center top;
+  padding-top: 9px;
+  background-position: center 4px;
   background-repeat: no-repeat;
   background-size: calc(100% - 16px) 1px;
 }
