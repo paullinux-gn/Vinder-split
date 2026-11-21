@@ -24,9 +24,7 @@ struct _NautilusViewControls
     AdwBin parent_instance;
 
     GtkWidget *view_split_button;
-    GtkToggleButton *icon_view_button;
-    GtkToggleButton *list_view_button;
-    GtkToggleButton *tree_view_button;
+    AdwToggleGroup *view_toggle_group;
     gboolean updating_buttons;
     GMenuModel *view_menu;
     GMenuModel *sort_section;
@@ -68,12 +66,10 @@ update_view_buttons (NautilusViewControls *self)
     gboolean available = view_id == NAUTILUS_VIEW_GRID_ID || view_id == NAUTILUS_VIEW_LIST_ID;
 
     self->updating_buttons = TRUE;
-    gtk_widget_set_sensitive (GTK_WIDGET (self->icon_view_button), available);
-    gtk_widget_set_sensitive (GTK_WIDGET (self->list_view_button), available);
-    gtk_widget_set_sensitive (GTK_WIDGET (self->tree_view_button), available);
-    gtk_toggle_button_set_active (self->icon_view_button, view_id == NAUTILUS_VIEW_GRID_ID);
-    gtk_toggle_button_set_active (self->list_view_button, view_id == NAUTILUS_VIEW_LIST_ID && !tree);
-    gtk_toggle_button_set_active (self->tree_view_button, view_id == NAUTILUS_VIEW_LIST_ID && tree);
+    gtk_widget_set_sensitive (GTK_WIDGET (self->view_toggle_group), available);
+    adw_toggle_group_set_active_name (self->view_toggle_group,
+                                      view_id == NAUTILUS_VIEW_GRID_ID ? "grid" :
+                                      tree ? "tree" : "list");
     self->updating_buttons = FALSE;
 }
 
@@ -86,15 +82,21 @@ on_tree_preference_changed (GSettings            *settings,
 }
 
 static void
-on_view_button_toggled (GtkToggleButton      *button,
-                         NautilusViewControls *self)
+on_view_button_toggled (AdwToggleGroup       *group,
+                        GParamSpec           *pspec,
+                        NautilusViewControls *self)
 {
-    if (self->updating_buttons || !gtk_toggle_button_get_active (button) || self->window_slot == NULL)
+    if (self->updating_buttons || self->window_slot == NULL)
     {
         return;
     }
 
-    gboolean grid = button == self->icon_view_button;
+    const char *mode = adw_toggle_group_get_active_name (group);
+    if (mode == NULL)
+    {
+        return;
+    }
+    gboolean grid = g_str_equal (mode, "grid");
     GFile *location = nautilus_window_slot_get_location (self->window_slot);
     if (location == NULL)
     {
@@ -102,7 +104,6 @@ on_view_button_toggled (GtkToggleButton      *button,
     }
 
     g_autoptr (NautilusFile) folder = nautilus_file_get (location);
-    const char *mode = grid ? "grid" : button == self->tree_view_button ? "tree" : "list";
     const char *previous_mode = vinder_folder_get_view_mode (folder);
     gboolean changed = g_strcmp0 (mode, previous_mode) != 0;
     NautilusFilesView *view = nautilus_window_slot_get_current_view (self->window_slot);
@@ -314,9 +315,7 @@ nautilus_view_controls_class_init (NautilusViewControlsClass *klass)
                                                  "/org/gnome/nautilus/ui/nautilus-view-controls.ui");
     gtk_widget_class_bind_template_child (widget_class, NautilusViewControls, view_menu);
     gtk_widget_class_bind_template_child (widget_class, NautilusViewControls, view_split_button);
-    gtk_widget_class_bind_template_child (widget_class, NautilusViewControls, icon_view_button);
-    gtk_widget_class_bind_template_child (widget_class, NautilusViewControls, list_view_button);
-    gtk_widget_class_bind_template_child (widget_class, NautilusViewControls, tree_view_button);
+    gtk_widget_class_bind_template_child (widget_class, NautilusViewControls, view_toggle_group);
     gtk_widget_class_bind_template_callback (widget_class, on_view_button_toggled);
 }
 
