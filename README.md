@@ -122,6 +122,8 @@ The Flatpak manifest is [build-aux/flatpak/io.github.paullinux_gn.Vinder.json](b
 
 ## Source, support, and licensing
 
+Vinder is developed and maintained by **Paul Beyens ([paullinux-gn](https://github.com/paullinux-gn))**. The inherited Nautilus authors are credited for the upstream code; they are not listed as members of the Vinder development team. GitHub's automatic Contributors list includes authors from the inherited Nautilus commit history.
+
 Vinder builds on the work of the [GNOME Nautilus contributors](https://gitlab.gnome.org/GNOME/nautilus). See [LICENSE](LICENSE) for licensing terms and [the 1.6 release notes](RELEASE_NOTES_1.6.md) for the release overview. Report Vinder issues on [GitHub](https://github.com/paullinux-gn/vinder/issues).
 
 ## Nautilus backend fixes
