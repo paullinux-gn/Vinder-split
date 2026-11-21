@@ -115,7 +115,7 @@ jobs:
           flatpak-builder --user --disable-rofiles-fuse --force-clean \
             --install-deps-from=flathub --state-dir=.flatpak-builder \
             --repo=repo build-dir-full "$MANIFEST"
-          flatpak build-bundle repo "Vinder-${ver}-x86_64.flatpak" "$APP_ID"
+          flatpak build-bundle repo "Vinder-${ver}-x86_64.flatpak" "$APP_ID" stable
           sha256sum "Vinder-${ver}-x86_64.flatpak" > SHA256SUMS
 
       - name: Smoke-test the installed bundle
