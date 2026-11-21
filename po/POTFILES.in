@@ -1,8 +1,8 @@
 # List of source files containing translatable strings.
 # Please keep this file sorted alphabetically.
+data/io.github.paullinux_gn.Vinder.gschema.xml
 data/nautilus-autorun-software.desktop.in
 data/org.gnome.Nautilus.desktop.in.in
-data/org.gnome.nautilus.gschema.xml
 data/org.gnome.Nautilus.metainfo.xml.in.in
 extensions/audio-video-properties/audio-video-properties-model.c
 extensions/audio-video-properties/audio-video-properties-module.c
