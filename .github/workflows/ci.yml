@@ -1,0 +1,176 @@
+# Save as: .github/workflows/ci.yml
+#
+# What it does
+#   build   : builds the dependency stack from the Flatpak manifest once, then
+#             compiles and runs `meson test` for the three profiles
+#             (Vinder, Devel, and stock/"" Nautilus) inside the GNOME 51 SDK,
+#             then builds the real Vinder Flatpak bundle and uploads it.
+#   release : on a v* tag, checks the tag matches meson.build, then publishes a
+#             GitHub release with the bundle, SHA256SUMS and a build attestation.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+env:
+  MANIFEST: build-aux/flatpak/io.github.paullinux_gn.Vinder.json
+  APP_ID: io.github.paullinux_gn.Vinder
+
+jobs:
+  build:
+    name: Build, test, Flatpak
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Read Vinder version from meson.build
+        id: meta
+        run: |
+          ver=$(grep -A1 "^if profile == 'Vinder'" meson.build | grep -o "'[0-9][0-9.]*'" | tr -d "'")
+          test -n "$ver" || { echo "::error::Could not read Vinder version from meson.build"; exit 1; }
+          echo "version=$ver" >> "$GITHUB_OUTPUT"
+
+      - name: Install Flatpak tooling
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y flatpak flatpak-builder git
+          flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+
+      - name: Cache flatpak-builder state (dependency builds)
+        uses: actions/cache@v4
+        with:
+          path: .flatpak-builder
+          key: flatpak-${{ runner.os }}-${{ hashFiles('build-aux/flatpak/**') }}
+          restore-keys: |
+            flatpak-${{ runner.os }}-
+
+      # Build every dependency in the manifest (exiv2, gnome-desktop, localsearch...)
+      # and stop right before the Vinder module, so we can build/test it ourselves.
+      - name: Build dependencies in the GNOME 51 SDK
+        run: |
+          flatpak-builder --user --disable-rofiles-fuse --force-clean \
+            --install-deps-from=flathub --stop-at=nautilus \
+            --state-dir=.flatpak-builder build-dir "$MANIFEST"
+
+      # The manifest fetches libgxdp at a pinned commit; do the same for the
+      # source-tree builds so the sandbox needs no network access.
+      - name: Fetch libgxdp subproject (pinned in subprojects/libgxdp.wrap)
+        run: |
+          rev=$(sed -n 's/^revision *= *//p' subprojects/libgxdp.wrap)
+          test -n "$rev"
+          rm -rf subprojects/libgxdp
+          git clone https://gitlab.gnome.org/GNOME/libgxdp.git subprojects/libgxdp
+          git -C subprojects/libgxdp checkout "$rev"
+
+      - name: Build and test all profiles (Vinder, Devel, stock)
+        run: |
+          set -eo pipefail
+          failed=0
+          for profile in Vinder Devel stock; do
+            opt="$profile"; [ "$profile" = stock ] && opt=""
+            echo "::group::Profile: $profile"
+            if ! flatpak build --filesystem=home build-dir bash -euc "
+                cd '$PWD'
+                meson setup '_build/$profile' --prefix=/app --buildtype=debugoptimized \
+                  -Dprofile='$opt' -Dtests=headless -Dselinux=disabled
+                meson compile -C '_build/$profile'
+                meson test -C '_build/$profile' --print-errorlogs
+              "; then
+              echo "::error::Profile '$profile' failed"
+              failed=1
+            fi
+            echo "::endgroup::"
+          done
+          exit $failed
+
+      - name: Upload meson logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: meson-logs
+          path: _build/*/meson-logs/
+          if-no-files-found: ignore
+
+      # Full build exactly as the manifest defines it (-Dprofile=Vinder).
+      - name: Build Vinder Flatpak bundle
+        run: |
+          ver="${{ steps.meta.outputs.version }}"
+          flatpak-builder --user --disable-rofiles-fuse --force-clean \
+            --install-deps-from=flathub --state-dir=.flatpak-builder \
+            --repo=repo build-dir-full "$MANIFEST"
+          flatpak build-bundle repo "Vinder-${ver}-x86_64.flatpak" "$APP_ID"
+          sha256sum "Vinder-${ver}-x86_64.flatpak" > SHA256SUMS
+
+      - name: Smoke-test the installed bundle
+        run: |
+          ver="${{ steps.meta.outputs.version }}"
+          flatpak install --user -y "./Vinder-${ver}-x86_64.flatpak"
+          flatpak info --user "$APP_ID"
+          flatpak run --user --command=sh "$APP_ID" -c 'nautilus --version'
+
+      - name: Upload bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: vinder-flatpak
+          path: |
+            Vinder-*-x86_64.flatpak
+            SHA256SUMS
+          if-no-files-found: error
+
+  release:
+    name: Publish release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Tag must match meson.build version
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          ver="${{ needs.build.outputs.version }}"
+          if [ "$tag" != "$ver" ]; then
+            echo "::error::Tag v$tag does not match Vinder version $ver in meson.build"
+            exit 1
+          fi
+
+      - name: Download bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: vinder-flatpak
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: Vinder-*-x86_64.flatpak
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            Vinder-*-x86_64.flatpak
+            SHA256SUMS
+          body_path: RELEASE_NOTES_${{ needs.build.outputs.version }}.md
+          fail_on_unmatched_files: true
