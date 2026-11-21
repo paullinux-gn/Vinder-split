@@ -103,11 +103,15 @@ configure_file(
 
 gnome.compile_schemas(
   build_by_default: true,
-  depend_files: 'org.gnome.nautilus.gschema.xml',
+  depend_files: [
+    'io.github.paullinux_gn.Vinder.gschema.xml',
+    'io.github.paullinux_gn.Vinder.legacy.gschema.xml',
+  ],
 )
 
 install_data(
-  'org.gnome.nautilus.gschema.xml',
+  'io.github.paullinux_gn.Vinder.gschema.xml',
+  'io.github.paullinux_gn.Vinder.legacy.gschema.xml',
   install_dir: join_paths(datadir, 'glib-2.0', 'schemas'),
 )
 

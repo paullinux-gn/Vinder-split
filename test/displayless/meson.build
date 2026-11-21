@@ -24,6 +24,7 @@ tests = {
   'test-nautilus-search-engine-simple': {},
   'test-scripts-monitor': {},
   'test-ui-utilities': {},
+  'test-vinder-settings-migration': {},
 }
 
 foreach test_name, extra_args : tests
