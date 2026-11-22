@@ -61,6 +61,7 @@ libnautilus_sources = [
   'nautilus-app-chooser-widget.c',
   'nautilus-app-chooser-widget.h',
   'nautilus-application.c',
+  'vinder-blur-css.c',
   'vinder-interface.c',
   'vinder-settings-migration.c',
   'vinder-thumbnail-preparation.c',
