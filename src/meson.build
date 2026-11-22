@@ -64,6 +64,7 @@ libnautilus_sources = [
   'vinder-interface.c',
   'vinder-settings-migration.c',
   'vinder-thumbnail-preparation.c',
+  'vinder-thumbnail-scheduler.c',
   'nautilus-application.h',
   'nautilus-batch-rename-dialog.c',
   'nautilus-batch-rename-dialog.h',
