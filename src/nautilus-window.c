@@ -44,6 +44,7 @@
 #include "nautilus-toolbar.h"
 #include "nautilus-ui-utilities.h"
 #include "nautilus-window-slot.h"
+#include "vinder-interface.h"
 
 static void nautilus_window_initialize_actions (NautilusWindow *window);
 static void nautilus_window_sync_location_widgets (NautilusWindow *window);
@@ -1096,6 +1097,14 @@ update_files_header_blur (NautilusWindow *window)
     adw_toolbar_view_set_extend_content_to_top_edge (window->files_toolbar_view, enabled);
 }
 
+/* The blur stylesheet leaves room for the toolbar, so it needs to know how tall it really is. */
+static void
+report_top_bar_height (NautilusWindow *window)
+{
+    vinder_interface_set_top_bar_height (NAUTILUS_APPLICATION (g_application_get_default ()),
+                                         adw_toolbar_view_get_top_bar_height (window->files_toolbar_view));
+}
+
 static void
 update_zebra_rows (NautilusWindow *window)
 {
@@ -1559,6 +1568,10 @@ nautilus_window_init (NautilusWindow *window)
     g_signal_connect_object (adw_style_manager_get_default (), "notify::high-contrast",
                              G_CALLBACK (update_files_header_blur), window, G_CONNECT_SWAPPED);
     update_files_header_blur (window);
+
+    g_signal_connect_object (window->files_toolbar_view, "notify::top-bar-height",
+                             G_CALLBACK (report_top_bar_height), window, G_CONNECT_SWAPPED);
+    report_top_bar_height (window);
 
     g_signal_connect_object (nautilus_preferences, "changed::vinder-pop-icons",
                              G_CALLBACK (update_file_icon_shadows), window, G_CONNECT_SWAPPED);

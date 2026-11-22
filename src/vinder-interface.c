@@ -7,6 +7,7 @@
 #include <glib/gi18n.h>
 
 #include "nautilus-global-preferences.h"
+#include "vinder-blur-css.h"
 
 static void
 update_appearance (GSettings           *settings,
@@ -46,95 +47,121 @@ change_appearance (GSimpleAction *action,
     g_settings_set_value (nautilus_preferences, g_action_get_name (G_ACTION (action)), value);
 }
 
-static void
-update_blur (GSettings           *settings,
-             const char          *key,
-             NautilusApplication *self)
+/* Per-application state of the blur stylesheet. */
+typedef struct
 {
-    gboolean enabled = g_settings_get_boolean (settings, "vinder-blur");
-    GActionMap *actions = G_ACTION_MAP (self);
-    GAction *toggle = g_action_map_lookup_action (actions, "vinder-blur");
+    int top_bar_height;             /* real sizes reported by the windows */
+    int column_header_height;
+    char *css;                      /* what the provider currently holds */
+    guint update_source;            /* pending refresh of the stylesheet */
+} InterfaceState;
+
+static void
+interface_state_free (InterfaceState *state)
+{
+    g_clear_handle_id (&state->update_source, g_source_remove);
+    g_free (state->css);
+    g_free (state);
+}
+
+static InterfaceState *
+interface_state (NautilusApplication *self)
+{
+    return g_object_get_data (G_OBJECT (self), "vinder-interface-state");
+}
+
+static void
+update_blur_css (NautilusApplication *self)
+{
+    InterfaceState *state = interface_state (self);
     g_autofree char *css = NULL;
 
-    g_simple_action_set_state (G_SIMPLE_ACTION (toggle), g_variant_new_boolean (enabled));
-
-    if (enabled)
+    if (g_settings_get_boolean (nautilus_preferences, "vinder-blur"))
     {
-        double opacity = g_settings_get_double (settings, "vinder-blur-opacity");
-        double strength = g_settings_get_double (settings, "vinder-blur-strength");
-        g_autofree char *menu_css = NULL;
-
-        if (g_settings_get_boolean (settings, "vinder-menu-blur"))
-        {
-            menu_css = g_strdup_printf (
-                "  .vinder-window popover > contents,"
-                "  .vinder-window .floating-bar,"
-                "  .vinder-window popover > arrow {"
-                "    backdrop-filter: blur(%dpx);"
-                "    background-color: color-mix(in srgb, var(--popover-bg-color) %d%%, transparent);"
-                "  }", (int) strength, (int) opacity);
-        }
-
-        css = g_strdup_printf (
-            "@media (prefers-contrast: no-preference) {"
-            "  window.view.vinder-window { background-color: transparent; }"
-            "  .vinder-content { background-color: var(--view-bg-color); }"
-            "  .vinder-content.scroll-animation {"
-            "    --vinder-header-tint: color-mix(in srgb, var(--headerbar-bg-color) %d%%, transparent);"
-            "  }"
-            "  .vinder-content.scroll-animation > .top-bar,"
-            "  .vinder-content.scroll-animation > .top-bar:backdrop,"
-            "  .vinder-content.scroll-animation .nautilus-list-view columnview > header {"
-            "    backdrop-filter: blur(%dpx);"
-            "    background: var(--vinder-header-tint);"
-            "    box-shadow: none;"
-            "  }"
-            "  .vinder-content.scroll-animation > .top-bar headerbar {"
-            "    background: transparent;"
-            "  }"
-            "  .vinder-content.scroll-animation .nautilus-grid-view gridview { padding-top: 66px; }"
-            "  .vinder-content.scroll-animation .nautilus-list-view columnview > listview {"
-            "    margin-top: -112px;"
-            "    padding-top: calc(112px + 16px);"
-            "  }"
-            "  .vinder-content.scroll-animation .nautilus-grid-view scrolledwindow > undershoot.top,"
-            "  .vinder-content.scroll-animation .nautilus-list-view scrolledwindow > undershoot.top {"
-            "    min-height: 84px;"
-            "    background: linear-gradient(to bottom,"
-            "      transparent 40px,"
-            "      var(--vinder-header-tint) 48px,"
-            "      color-mix(in srgb, var(--vinder-header-tint) 55%%, transparent) 60px,"
-            "      transparent);"
-            "  }"
-            "  .vinder-split-view > .sidebar-pane,"
-            "  .vinder-content-surround,"
-            "  .vinder-split-view > .overlay-pane {"
-            "    backdrop-filter: blur(%dpx);"
-            "    background-color: color-mix(in srgb, var(--sidebar-bg-color) %d%%, transparent);"
-            "  }"
-            "  .vinder-split-view > .sidebar-pane:backdrop,"
-            "  .vinder-content-surround:backdrop {"
-            "    background-color: color-mix(in srgb, var(--sidebar-backdrop-color) %d%%, transparent);"
-            "  }"
-            "  dialog-host > dialog sheet,"
-            "  window.background:not(.vinder-window) {"
-            "    --vinder-popup-bg: var(--window-bg-color);"
-            "    backdrop-filter: blur(%dpx);"
-            "    background-color: color-mix(in srgb, var(--vinder-popup-bg) %d%%, transparent);"
-            "  }"
-            "  dialog-host > dialog.alert sheet,"
-            "  window.background.alert:not(.vinder-window),"
-            "  window.background.messagedialog:not(.vinder-window) {"
-            "    --vinder-popup-bg: var(--dialog-bg-color);"
-            "  }"
-            "  %s"
-            "}", MIN ((int) opacity, 62), MIN ((int) strength, 18), (int) strength, (int) opacity, (int) opacity,
-                 (int) strength, (int) opacity, menu_css != NULL ? menu_css : "");
+        css = vinder_blur_css_build (g_settings_get_double (nautilus_preferences, "vinder-blur-opacity"),
+                                     g_settings_get_double (nautilus_preferences, "vinder-blur-strength"),
+                                     g_settings_get_boolean (nautilus_preferences, "vinder-menu-blur"),
+                                     state->top_bar_height,
+                                     state->column_header_height);
     }
 
-    GtkCssProvider *provider = g_object_get_data (G_OBJECT (self), "blur-provider");
+    /* Loading a stylesheet restyles every widget, so skip it when nothing changed. */
+    if (g_strcmp0 (css != NULL ? css : "", state->css) != 0)
+    {
+        GtkCssProvider *provider = g_object_get_data (G_OBJECT (self), "blur-provider");
 
-    gtk_css_provider_load_from_string (provider, css != NULL ? css : "");
+        g_free (state->css);
+        state->css = g_strdup (css != NULL ? css : "");
+        gtk_css_provider_load_from_string (provider, state->css);
+    }
+}
+
+static gboolean
+run_blur_update (gpointer user_data)
+{
+    NautilusApplication *self = user_data;
+
+    interface_state (self)->update_source = 0;
+    update_blur_css (self);
+
+    return G_SOURCE_REMOVE;
+}
+
+/* Several settings (or sizes) often change together; refresh the stylesheet once for all. */
+static void
+schedule_blur_update (NautilusApplication *self)
+{
+    InterfaceState *state = interface_state (self);
+
+    if (state->update_source == 0)
+    {
+        state->update_source = g_idle_add (run_blur_update, self);
+    }
+}
+
+static void
+sync_blur_toggle (NautilusApplication *self)
+{
+    GAction *toggle = g_action_map_lookup_action (G_ACTION_MAP (self), "vinder-blur");
+
+    g_simple_action_set_state (G_SIMPLE_ACTION (toggle),
+                              g_variant_new_boolean (g_settings_get_boolean (nautilus_preferences,
+                                                                              "vinder-blur")));
+}
+
+static void
+on_blur_setting_changed (GSettings           *settings,
+                         const char          *key,
+                         NautilusApplication *self)
+{
+    sync_blur_toggle (self);
+    schedule_blur_update (self);
+}
+
+void
+vinder_interface_set_top_bar_height (NautilusApplication *self,
+                                     int                  height)
+{
+    InterfaceState *state = interface_state (self);
+
+    if (state != NULL && height > 0 && height != state->top_bar_height)
+    {
+        state->top_bar_height = height;
+        schedule_blur_update (self);
+    }
+}
+
+void
+vinder_interface_set_column_header_height (NautilusApplication *self,
+                                           int                  height)
+{
+    InterfaceState *state = interface_state (self);
+
+    if (state != NULL && height > 0 && height != state->column_header_height)
+    {
+        state->column_header_height = height;
+        schedule_blur_update (self);
+    }
 }
 
 static void
@@ -176,6 +203,84 @@ update_icon_shadow_strength (GSettings           *settings,
     gtk_css_provider_load_from_string (provider, css);
 }
 
+/* Dragging a slider fires a change for every step. Writing each one to the settings
+ * would restyle every window each time, so the value is only written once the slider
+ * has been still for a moment. */
+#define SLIDER_COMMIT_DELAY_MS 100
+
+typedef struct
+{
+    GtkAdjustment *adjustment;      /* not owned: this record lives as long as it does */
+    char *key;
+    double pending;
+    guint timeout_id;
+    gulong adjustment_handler;
+    gulong settings_handler;
+} SliderBinding;
+
+static void
+slider_binding_commit (SliderBinding *binding)
+{
+    g_settings_set_double (nautilus_preferences, binding->key, round (binding->pending));
+}
+
+static gboolean
+on_slider_timeout (gpointer user_data)
+{
+    SliderBinding *binding = user_data;
+
+    binding->timeout_id = 0;
+    slider_binding_commit (binding);
+
+    return G_SOURCE_REMOVE;
+}
+
+static void
+on_slider_value_changed (GtkAdjustment *adjustment,
+                         SliderBinding *binding)
+{
+    binding->pending = gtk_adjustment_get_value (adjustment);
+    g_clear_handle_id (&binding->timeout_id, g_source_remove);
+    binding->timeout_id = g_timeout_add (SLIDER_COMMIT_DELAY_MS, on_slider_timeout, binding);
+}
+
+static void
+on_slider_setting_changed (GSettings     *settings,
+                           const char    *key,
+                           SliderBinding *binding)
+{
+    double value;
+
+    if (binding->timeout_id != 0)
+    {
+        return;     /* the user is still dragging; their value wins */
+    }
+
+    value = g_settings_get_double (settings, binding->key);
+    if (value != gtk_adjustment_get_value (binding->adjustment))
+    {
+        g_signal_handler_block (binding->adjustment, binding->adjustment_handler);
+        gtk_adjustment_set_value (binding->adjustment, value);
+        g_signal_handler_unblock (binding->adjustment, binding->adjustment_handler);
+    }
+}
+
+static void
+slider_binding_free (SliderBinding *binding)
+{
+    g_signal_handler_disconnect (nautilus_preferences, binding->settings_handler);
+
+    if (binding->timeout_id != 0)
+    {
+        /* The dialog was closed right after a change: do not lose it. */
+        g_source_remove (binding->timeout_id);
+        slider_binding_commit (binding);
+    }
+
+    g_free (binding->key);
+    g_free (binding);
+}
+
 static GtkWidget *
 add_interface_slider (AdwPreferencesGroup *group,
                       const char          *title,
@@ -184,6 +289,9 @@ add_interface_slider (AdwPreferencesGroup *group,
 {
     AdwActionRow *row = ADW_ACTION_ROW (adw_action_row_new ());
     GtkWidget *scale = gtk_scale_new_with_range (GTK_ORIENTATION_HORIZONTAL, 0, maximum, 1);
+    GtkAdjustment *adjustment = gtk_range_get_adjustment (GTK_RANGE (scale));
+    g_autofree char *changed_signal = g_strconcat ("changed::", key, NULL);
+    SliderBinding *binding = g_new0 (SliderBinding, 1);
 
     adw_preferences_row_set_title (ADW_PREFERENCES_ROW (row), title);
     gtk_scale_set_draw_value (GTK_SCALE (scale), TRUE);
@@ -192,9 +300,17 @@ add_interface_slider (AdwPreferencesGroup *group,
     gtk_widget_set_valign (scale, GTK_ALIGN_CENTER);
     gtk_accessible_update_property (GTK_ACCESSIBLE (scale),
                                     GTK_ACCESSIBLE_PROPERTY_LABEL, title, -1);
-    g_settings_bind (nautilus_preferences, key,
-                     gtk_range_get_adjustment (GTK_RANGE (scale)), "value",
-                     G_SETTINGS_BIND_DEFAULT | G_SETTINGS_BIND_NO_SENSITIVITY);
+
+    binding->adjustment = adjustment;
+    binding->key = g_strdup (key);
+    gtk_adjustment_set_value (adjustment, g_settings_get_double (nautilus_preferences, key));
+    binding->adjustment_handler = g_signal_connect (adjustment, "value-changed",
+                                                    G_CALLBACK (on_slider_value_changed), binding);
+    binding->settings_handler = g_signal_connect (nautilus_preferences, changed_signal,
+                                                  G_CALLBACK (on_slider_setting_changed), binding);
+    g_object_set_data_full (G_OBJECT (adjustment), "vinder-slider-binding", binding,
+                            (GDestroyNotify) slider_binding_free);
+
     adw_action_row_add_suffix (row, scale);
     adw_preferences_group_add (group, GTK_WIDGET (row));
 
@@ -270,7 +386,11 @@ action_interface (GSimpleAction *action,
     adw_preferences_page_add (page, group);
 
     AdwPreferencesGroup *sliders = ADW_PREFERENCES_GROUP (adw_preferences_group_new ());
+    g_autofree char *header_limits = g_strdup_printf (
+        _("With Scroll Animation on, toolbars and column headers use at most %d%% opacity and %d blur, so content stays readable behind them."),
+        VINDER_HEADER_MAX_OPACITY, VINDER_HEADER_MAX_BLUR);
 
+    adw_preferences_group_set_description (sliders, header_limits);
     add_interface_slider (sliders, _("Opacity (%)"), "vinder-blur-opacity", 100);
     add_interface_slider (sliders, _("Blur Strength"), "vinder-blur-strength", 40);
     g_settings_bind (nautilus_preferences, "vinder-blur", sliders, "sensitive", G_SETTINGS_BIND_GET);
@@ -297,6 +417,13 @@ vinder_interface_setup (NautilusApplication *self)
                              G_CALLBACK (update_appearance), self, 0);
     update_appearance (nautilus_preferences, "vinder-appearance", self);
 
+    InterfaceState *state = g_new0 (InterfaceState, 1);
+
+    state->top_bar_height = VINDER_DEFAULT_TOP_BAR_HEIGHT;
+    state->column_header_height = VINDER_DEFAULT_COLUMN_HEADER_HEIGHT;
+    g_object_set_data_full (G_OBJECT (self), "vinder-interface-state", state,
+                            (GDestroyNotify) interface_state_free);
+
     GtkCssProvider *blur_provider = gtk_css_provider_new ();
     g_object_set_data_full (G_OBJECT (self), "blur-provider", blur_provider, g_object_unref);
     gtk_style_context_add_provider_for_display (gdk_display_get_default (),
@@ -311,9 +438,10 @@ vinder_interface_setup (NautilusApplication *self)
     for (guint i = 0; i < G_N_ELEMENTS (blur_signals); i++)
     {
         g_signal_connect_object (nautilus_preferences, blur_signals[i],
-                                 G_CALLBACK (update_blur), self, 0);
+                                 G_CALLBACK (on_blur_setting_changed), self, 0);
     }
-    update_blur (nautilus_preferences, NULL, self);
+    sync_blur_toggle (self);
+    update_blur_css (self);
 
     GtkCssProvider *icon_shadow_provider = gtk_css_provider_new ();
     g_object_set_data_full (G_OBJECT (self), "icon-shadow-provider", icon_shadow_provider, g_object_unref);

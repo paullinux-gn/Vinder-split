@@ -28,6 +28,7 @@
 #include "nautilus-tag-manager.h"
 #include "nautilus-view-item.h"
 #include "nautilus-view-model.h"
+#include "vinder-interface.h"
 
 /* We wait two seconds after row is collapsed to unload the subdirectory */
 #define COLLAPSE_TO_UNLOAD_DELAY 2
@@ -1207,8 +1208,16 @@ update_column_header_offset (NautilusListView *self)
     int offset = adw_toolbar_view_get_extend_content_to_top_edge (toolbar)
                  ? adw_toolbar_view_get_top_bar_height (toolbar)
                  : 0;
+    int natural;
 
     gtk_widget_set_margin_top (self->column_header, offset);
+
+    /* Tell the blur stylesheet how tall the header really is. Measuring includes the
+     * margins, which are not part of the header itself. */
+    gtk_widget_measure (self->column_header, GTK_ORIENTATION_VERTICAL, -1, NULL, &natural, NULL, NULL);
+    vinder_interface_set_column_header_height (NAUTILUS_APPLICATION (g_application_get_default ()),
+                                               natural - gtk_widget_get_margin_top (self->column_header)
+                                               - gtk_widget_get_margin_bottom (self->column_header));
 }
 
 static void
