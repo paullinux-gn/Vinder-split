@@ -3,16 +3,26 @@
 #include <gtk/gtk.h>
 
 #include "vinder-thumbnail-preparation.h"
+#include "vinder-thumbnail-scheduler.h"
+
+static gboolean
+never_called (GFile              *file,
+              GFileInfo          *info,
+              GCancellable       *cancellable,
+              GAsyncReadyCallback callback,
+              gpointer            callback_data,
+              gpointer            user_data)
+{
+    return FALSE;
+}
 
 static void
 test_input_events_are_never_swallowed (void)
 {
-    GApplication *application = g_application_new ("org.example.VinderActivityTest",
-                                                  G_APPLICATION_NON_UNIQUE);
-    g_object_set_data_full (G_OBJECT (application), "thumbnail-idle-timer",
-                            g_timer_new (), (GDestroyNotify) g_timer_destroy);
+    VinderThumbnailScheduler *scheduler =
+        vinder_thumbnail_scheduler_new ("standard::name", 5000, never_called, NULL);
     GtkEventController *controller =
-        vinder_thumbnail_preparation_activity_controller_new (application);
+        vinder_thumbnail_preparation_activity_controller_new (scheduler);
     gboolean handled = TRUE;
 
     g_assert_cmpint (gtk_event_controller_get_propagation_phase (controller), ==, GTK_PHASE_CAPTURE);
@@ -26,7 +36,8 @@ test_input_events_are_never_swallowed (void)
     }
 
     g_object_unref (controller);
-    g_object_unref (application);
+    vinder_thumbnail_scheduler_stop (scheduler);
+    g_object_unref (scheduler);
 }
 
 int
