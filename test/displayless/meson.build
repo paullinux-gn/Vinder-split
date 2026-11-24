@@ -26,6 +26,7 @@ tests = {
   'test-scripts-monitor': {},
   'test-ui-utilities': {},
   'test-vinder-settings-migration': {},
+  'test-vinder-thumbnail-scheduler': {},
 }
 
 foreach test_name, extra_args : tests
