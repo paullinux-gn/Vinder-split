@@ -128,6 +128,11 @@
       <summary>Vinder appearance</summary>
       <description>The color theme used by Vinder.</description>
     </key>
+    <key name="vinder-thumbnail-folders" type="as">
+      <default>[]</default>
+      <summary>Folders whose thumbnails are prepared in the background</summary>
+      <description>Absolute paths of the folders Vinder creates thumbnails for while it is idle. When the list is empty, the Pictures folder is used. Your home folder and the root folder are ignored. Nothing is prepared while thumbnails are turned off or the system is in power saver mode.</description>
+    </key>
     <key name="legacy-settings-migrated" type="b">
       <default>false</default>
       <summary>Whether settings were copied from the old shared location</summary>
