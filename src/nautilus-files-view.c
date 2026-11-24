@@ -2448,6 +2448,14 @@ open_terminal_at_location (NautilusFilesView *view,
         {
             path += strlen (host_root);
         }
+
+        /* GNOME Console opens the directory on the host through its
+         * org.freedesktop.Application.Open API. This avoids granting the
+         * sandbox org.freedesktop.Flatpak access just to run flatpak-spawn.
+         */
+        g_autoptr (GFile) host_location = g_file_new_for_path (path);
+        open_console_at_location (view, host_location);
+        return;
     }
 
     /* A running terminal may handle the request in another process, so the
@@ -2456,22 +2464,11 @@ open_terminal_at_location (NautilusFilesView *view,
                                                  path, NULL);
     const char *new_window = use_ptyxis ? "--new-window" : NULL;
 
-    if (sandboxed)
-    {
-        g_autofree char *host_dir = g_strconcat ("--directory=", path, NULL);
+    g_autoptr (GSubprocessLauncher) launcher = g_subprocess_launcher_new (G_SUBPROCESS_FLAGS_NONE);
 
-        process = g_subprocess_new (G_SUBPROCESS_FLAGS_NONE, NULL,
-                                    "flatpak-spawn", "--host", host_dir,
-                                    program, terminal_dir, new_window, NULL);
-    }
-    else
-    {
-        g_autoptr (GSubprocessLauncher) launcher = g_subprocess_launcher_new (G_SUBPROCESS_FLAGS_NONE);
-
-        g_subprocess_launcher_set_cwd (launcher, path);
-        process = g_subprocess_launcher_spawn (launcher, NULL, program, terminal_dir,
-                                               new_window, NULL);
-    }
+    g_subprocess_launcher_set_cwd (launcher, path);
+    process = g_subprocess_launcher_spawn (launcher, NULL, program, terminal_dir,
+                                           new_window, NULL);
 
     g_autoptr (GFile) host_location = g_file_new_for_path (path);
     if (process == NULL)
