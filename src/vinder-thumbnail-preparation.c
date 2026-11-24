@@ -41,15 +41,27 @@ on_input_event (GtkEventControllerLegacy *controller,
     return GDK_EVENT_PROPAGATE;
 }
 
+GtkEventController *
+vinder_thumbnail_preparation_activity_controller_new (GApplication *application)
+{
+    GtkEventController *controller = gtk_event_controller_legacy_new ();
+
+    gtk_event_controller_set_propagation_phase (controller, GTK_PHASE_CAPTURE);
+    /* This controller only records activity. Returning PROPAGATE is essential:
+     * returning TRUE here consumes every click and key press in the window. */
+    g_signal_connect_object (controller, "event", G_CALLBACK (on_input_event), application, 0);
+
+    return controller;
+}
+
 static void
 watch_window_input (GtkApplication *application,
                     GtkWindow      *window,
                     gpointer        user_data)
 {
-    GtkEventController *controller = gtk_event_controller_legacy_new ();
+    GtkEventController *controller =
+        vinder_thumbnail_preparation_activity_controller_new (G_APPLICATION (application));
 
-    gtk_event_controller_set_propagation_phase (controller, GTK_PHASE_CAPTURE);
-    g_signal_connect_object (controller, "event", G_CALLBACK (on_input_event), application, 0);
     gtk_widget_add_controller (GTK_WIDGET (window), controller);
 }
 
