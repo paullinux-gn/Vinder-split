@@ -98,6 +98,15 @@ template $NautilusToolbar: Adw.Bin {
     }
 
     [end]
+    ToggleButton {
+      visible: bind template.show-view-controls;
+      icon-name: "view-dual-symbolic";
+      tooltip-text: _("Split View (F3)");
+      action-name: "win.toggle-split-view";
+      focus-on-click: false;
+    }
+
+    [end]
     Button new_folder_button {
       visible: bind template.show-new-folder-button;
       icon-name: "folder-new-symbolic";

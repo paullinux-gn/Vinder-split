@@ -18,7 +18,7 @@ po_dir = join_paths(meson.project_source_root(), 'po')
 desktop_conf = configuration_data()
 
 desktop_conf.set('icon', application_id)
-desktop_conf.set('app-name', profile == 'Vinder' ? 'Vinder' : 'Files')
+desktop_conf.set('app-name', application_name)
 
 desktop = i18n.merge_file(
   input: configure_file(
@@ -45,7 +45,7 @@ desktop_autorun_software = i18n.merge_file(
 appdata_conf = configuration_data()
 
 appdata_conf.set('appid', application_id)
-appdata_conf.set('app-name', profile == 'Vinder' ? 'Vinder' : 'Files')
+appdata_conf.set('app-name', application_name)
 appdata_conf.set('vinder-release', profile == 'Vinder' ? '<release version="1.8.1" date="2026-11-24"/><release version="1.8" date="2026-11-24"/><release version="1.7" date="2026-11-21"/><release version="1.6" date="2026-11-21"/><release version="1.5.0" date="2026-11-20"/><release version="1.4.9" date="2026-11-20"/><release version="1.4.8" date="2026-11-17"/><release version="1.4.7" date="2026-11-17"/><release version="1.3" date="2026-11-14"/><release version="1.2" date="2026-11-14"/><release version="1.1" date="2026-11-14"/><release version="1.0" date="2026-11-14"/>' : '')
 appdata_conf.set('upstream-release-start', profile == 'Vinder' ? '<!--' : '')
 appdata_conf.set('upstream-release-end', profile == 'Vinder' ? '-->' : '')

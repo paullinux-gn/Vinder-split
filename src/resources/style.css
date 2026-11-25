@@ -18,6 +18,20 @@ window.devel.vinder-window toolbarview > .top-bar {
   box-shadow: 0 1px 3px rgb(0 0 0 / 10%);
 }
 
+.vinder-pane-split > separator {
+  min-width: 1px;
+  min-height: 1px;
+  background-color: color-mix(in srgb, currentColor 15%, transparent);
+}
+
+.vinder-pane-split > separator:hover {
+  background-color: color-mix(in srgb, currentColor 35%, transparent);
+}
+
+.vinder-pane-split .active-pane {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 14%, transparent);
+}
+
 /* Mixed appearance uses Adwaita dark, with a light palette on the file side. */
 .vinder-dark-and-light .vinder-content {
   --window-bg-color: #fafafb;

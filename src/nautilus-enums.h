@@ -85,6 +85,7 @@ typedef enum
     NAUTILUS_OPEN_FLAG_NEW_TAB          = 1 << 2,
     NAUTILUS_OPEN_FLAG_DONT_MAKE_ACTIVE = 1 << 3,
     NAUTILUS_OPEN_FLAG_REUSE_EXISTING   = 1 << 4,
+    NAUTILUS_OPEN_FLAG_OTHER_PANE       = 1 << 5,
 } G_GNUC_FLAG_ENUM NautilusOpenFlags;
 
 /* See io.github.paullinux_gn.Vinder.SearchFilterTimeType schema */

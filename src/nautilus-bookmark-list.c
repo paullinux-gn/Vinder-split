@@ -57,19 +57,22 @@ static GFile *
 nautilus_bookmark_list_get_file (void)
 {
     g_autofree char *filename = NULL;
+    const char *bookmark_directory = g_str_equal (PROFILE, "Vinder") ? "vinder" :
+                                     g_str_equal (PROFILE, "VinderSplit") ? "vinder-split" :
+                                     "gtk-3.0";
 
     if (g_test_initialized () &&
         g_getenv ("XDG_CONFIG_HOME"))
     {
         filename = g_build_filename (g_getenv ("XDG_CONFIG_HOME"),
-                                     g_str_equal (PROFILE, "Vinder") ? "vinder" : "gtk-3.0",
+                                     bookmark_directory,
                                      "bookmarks",
                                      NULL);
     }
     else
     {
         filename = g_build_filename (g_get_user_config_dir (),
-                                     g_str_equal (PROFILE, "Vinder") ? "vinder" : "gtk-3.0",
+                                     bookmark_directory,
                                      "bookmarks",
                                      NULL);
     }
@@ -193,7 +196,7 @@ nautilus_bookmarks_monitor_file (NautilusBookmarkList *bookmarks)
 static void
 vinder_initialize_bookmarks (void)
 {
-    if (!g_str_equal (PROFILE, "Vinder"))
+    if (!g_str_equal (PROFILE, "Vinder") && !g_str_equal (PROFILE, "VinderSplit"))
     {
         return;
     }

@@ -66,6 +66,7 @@
 #include "nautilus-view-item.h"
 #include "nautilus-view-model.h"
 #include "nautilus-window-slot.h"
+#include "nautilus-window.h"
 
 /* Minimum starting update interval */
 #define UPDATE_INTERVAL_MIN 100
@@ -1404,6 +1405,31 @@ action_open_item_new_tab (GSimpleAction *action,
                                         NAUTILUS_OPEN_FLAG_NEW_TAB |
                                         NAUTILUS_OPEN_FLAG_DONT_MAKE_ACTIVE,
                                         TRUE);
+}
+
+static void
+action_open_item_other_pane (GSimpleAction *action,
+                             GVariant      *state,
+                             gpointer       user_data)
+{
+    NautilusFilesView *view = NAUTILUS_FILES_VIEW (user_data);
+    g_autolist (NautilusFile) selection = nautilus_files_view_get_selection (view);
+
+    if (selection == NULL || selection->next != NULL)
+    {
+        return;
+    }
+
+    NautilusWindow *window = NAUTILUS_WINDOW (gtk_widget_get_ancestor (GTK_WIDGET (view),
+                                                                       NAUTILUS_TYPE_WINDOW));
+    if (window != NULL && nautilus_file_opens_in_view (selection->data))
+    {
+        g_autoptr (GFile) location = nautilus_file_get_activation_location (selection->data);
+        if (location != NULL)
+        {
+            nautilus_window_open_location_in_other_pane (window, location);
+        }
+    }
 }
 
 static void
@@ -6788,6 +6814,7 @@ static const GActionEntry view_entries[] =
     { .name = "open-current-directory-with-files", .activate = action_open_current_directory_with_files },
     { .name = "open-item-new-window", .activate = action_open_item_new_window },
     { .name = "open-item-new-tab", .activate = action_open_item_new_tab },
+    { .name = "open-item-other-pane", .activate = action_open_item_other_pane },
     { .name = "cut", .activate = action_cut},
     { .name = "copy", .activate = action_copy},
     { .name = "create-link-in-place", .activate = action_create_links_in_place },
@@ -7323,6 +7350,9 @@ nautilus_files_view_update_actions_state (NautilusFilesView *self)
     files_action_set_enabled (self, "open-item-new-window",
                               mode == NAUTILUS_MODE_BROWSE &&
                               item_opens_in_view);
+    files_action_set_enabled (self, "open-item-other-pane",
+                              mode == NAUTILUS_MODE_BROWSE &&
+                              list_len_is_one (selection) && item_opens_in_view);
     files_action_set_enabled (self, "run-in-terminal",
                               mode == NAUTILUS_MODE_BROWSE &&
                               can_run_in_terminal (selection));

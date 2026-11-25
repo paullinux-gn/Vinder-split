@@ -95,6 +95,11 @@
               <attribute name="hidden-when">action-disabled</attribute>
             </item>
             <item>
+              <attribute name="label" translatable="yes">Open in Other _Pane</attribute>
+              <attribute name="action">view.open-item-other-pane</attribute>
+              <attribute name="hidden-when">action-disabled</attribute>
+            </item>
+            <item>
               <attribute name="label" translatable="yes">Open in New _Window</attribute>
               <attribute name="action">view.open-item-new-window</attribute>
               <attribute name="hidden-when">action-disabled</attribute>

@@ -173,7 +173,16 @@ if get_option('profile') == 'Devel'
   app_id_suffix = '.Devel'
 endif
 
-application_id = profile == 'Vinder' ? 'io.github.paullinux_gn.Vinder' : 'org.gnome.Nautilus' + app_id_suffix
+if profile == 'Vinder'
+  application_id = 'io.github.paullinux_gn.Vinder'
+  application_name = 'Vinder'
+elif profile == 'VinderSplit'
+  application_id = 'io.github.paullinux_gn.VinderSplit'
+  application_name = 'Vinder-split'
+else
+  application_id = 'org.gnome.Nautilus' + app_id_suffix
+  application_name = profile == '' ? 'Files' : 'GNOME nautilus'
+endif
 
 if profile == 'Vinder'
   version_string = '1.8.1'
@@ -190,9 +199,10 @@ conf.set_quoted('GETTEXT_PACKAGE', 'nautilus')
 conf.set_quoted('LOCALEDIR', join_paths(prefix, localedir))
 conf.set_quoted('NAUTILUS_DATADIR', join_paths(prefix, datadir, 'nautilus'))
 conf.set_quoted('NAUTILUS_EXTENSIONDIR', join_paths(prefix, extensiondir))
-conf.set_quoted('APPLICATION_NAME', profile == 'Vinder' ? 'Vinder' : 'GNOME nautilus')
+conf.set_quoted('APPLICATION_NAME', application_name)
 conf.set_quoted('PACKAGE_VERSION', profile == 'Vinder' ? version_string : meson.project_version())
 conf.set_quoted('PROFILE', profile)
+conf.set('VINDER_SPLIT_PROFILE', profile == 'VinderSplit' ? 1 : 0)
 conf.set_quoted('VERSION', version_string)
 
 conf.set('HAVE_SELINUX', selinux.found())

@@ -6,8 +6,14 @@
  * Authors: Ramiro Estrugo <ramiro@eazel.com>
  */
 
+#include <config.h>
+
 #include "nautilus-global-preferences.h"
 #include "vinder-settings-migration.h"
+
+#define G_SETTINGS_ENABLE_BACKEND
+#include <gio/gsettingsbackend.h>
+#undef G_SETTINGS_ENABLE_BACKEND
 
 #include "nautilus-file-utilities.h"
 
@@ -31,6 +37,44 @@ GSettings *localsearch_preferences;
 static gboolean mouse_extra_buttons = TRUE;
 static guint mouse_forward_button = 9;
 static guint mouse_back_button = 8;
+
+#if VINDER_SPLIT_PROFILE
+static GSettingsBackend *vinder_split_settings_backend;
+
+static GSettings *
+new_vinder_settings (const char *schema_id)
+{
+    GSettingsSchemaSource *source = g_settings_schema_source_get_default ();
+    g_autoptr (GSettingsSchema) schema = g_settings_schema_source_lookup (source, schema_id, TRUE);
+
+    g_return_val_if_fail (schema != NULL, NULL);
+
+    if (vinder_split_settings_backend == NULL)
+    {
+        g_autofree char *directory = g_build_filename (g_get_user_config_dir (),
+                                                        "vinder-split", NULL);
+        g_autofree char *filename = g_build_filename (directory, "settings.ini", NULL);
+
+        if (g_mkdir_with_parents (directory, 0700) != 0)
+        {
+            g_warning ("Could not create Vinder-split settings directory '%s'", directory);
+            return NULL;
+        }
+
+        vinder_split_settings_backend = g_keyfile_settings_backend_new (filename,
+                                                                         "/io/github/paullinux_gn/Vinder/",
+                                                                         "vinder-split");
+    }
+
+    return g_settings_new_full (schema, vinder_split_settings_backend, NULL);
+}
+#else
+static GSettings *
+new_vinder_settings (const char *schema_id)
+{
+    return g_settings_new (schema_id);
+}
+#endif
 
 static void
 use_extra_mouse_buttons_changed (gpointer callback_data)
@@ -82,17 +126,19 @@ nautilus_global_preferences_init (void)
 
     initialized = TRUE;
 
-    nautilus_preferences = g_settings_new ("io.github.paullinux_gn.Vinder.preferences");
-    nautilus_compression_preferences = g_settings_new ("io.github.paullinux_gn.Vinder.compression");
-    nautilus_window_state = g_settings_new ("io.github.paullinux_gn.Vinder.window-state");
-    nautilus_icon_view_preferences = g_settings_new ("io.github.paullinux_gn.Vinder.icon-view");
-    nautilus_list_view_preferences = g_settings_new ("io.github.paullinux_gn.Vinder.list-view");
+    nautilus_preferences = new_vinder_settings ("io.github.paullinux_gn.Vinder.preferences");
+    nautilus_compression_preferences = new_vinder_settings ("io.github.paullinux_gn.Vinder.compression");
+    nautilus_window_state = new_vinder_settings ("io.github.paullinux_gn.Vinder.window-state");
+    nautilus_icon_view_preferences = new_vinder_settings ("io.github.paullinux_gn.Vinder.icon-view");
+    nautilus_list_view_preferences = new_vinder_settings ("io.github.paullinux_gn.Vinder.list-view");
     /* Vinder keeps its own settings; copy the old shared ones over, once. */
+#if !VINDER_SPLIT_PROFILE
     vinder_settings_migrate_legacy (nautilus_preferences,
                                     nautilus_compression_preferences,
                                     nautilus_icon_view_preferences,
                                     nautilus_list_view_preferences,
                                     nautilus_window_state);
+#endif
     /* Some settings such as show hidden files are shared between Nautilus and GTK file chooser */
     gtk_filechooser_preferences = g_settings_new_with_path ("org.gtk.gtk4.Settings.FileChooser",
                                                             "/org/gtk/gtk4/settings/file-chooser/");

@@ -25,6 +25,7 @@
 #include "nautilus-trash-monitor.h"
 #include "nautilus-ui-utilities.h"
 #include "nautilus-window-slot.h"
+#include "nautilus-window.h"
 
 #ifdef GDK_WINDOWING_X11
 #include <gdk/x11/gdkx.h>
@@ -130,6 +131,9 @@ static void     action_pathbar_open_item_new_window (GSimpleAction *action,
 static void     action_pathbar_open_item_new_tab (GSimpleAction *action,
                                                   GVariant      *state,
                                                   gpointer       user_data);
+static void     action_pathbar_open_item_other_pane (GSimpleAction *action,
+                                                     GVariant      *state,
+                                                     gpointer       user_data);
 static void     action_pathbar_properties (GSimpleAction *action,
                                            GVariant      *state,
                                            gpointer       user_data);
@@ -140,6 +144,7 @@ static void nautilus_path_bar_clear_buttons (NautilusPathBar *self);
 static const GActionEntry path_bar_actions[] =
 {
     { .name = "open-item-new-tab", .activate = action_pathbar_open_item_new_tab },
+    { .name = "open-item-other-pane", .activate = action_pathbar_open_item_other_pane },
     { .name = "open-item-new-window", .activate = action_pathbar_open_item_new_window },
     { .name = "properties", .activate = action_pathbar_properties}
 };
@@ -191,6 +196,28 @@ action_pathbar_open_item_new_window (GSimpleAction *action,
     {
         g_signal_emit (user_data, path_bar_signals[OPEN_LOCATION], 0, location, NAUTILUS_OPEN_FLAG_NEW_WINDOW);
         g_object_unref (location);
+    }
+}
+
+static void
+action_pathbar_open_item_other_pane (GSimpleAction *action,
+                                     GVariant      *state,
+                                     gpointer       user_data)
+{
+    NautilusPathBar *self = NAUTILUS_PATH_BAR (user_data);
+    NautilusWindow *window = NAUTILUS_WINDOW (gtk_widget_get_ancestor (GTK_WIDGET (self),
+                                                                       NAUTILUS_TYPE_WINDOW));
+    g_autoptr (GFile) location = NULL;
+
+    if (self->context_menu_file == NULL || window == NULL)
+    {
+        return;
+    }
+
+    location = nautilus_file_get_location (self->context_menu_file);
+    if (location != NULL)
+    {
+        nautilus_window_open_location_in_other_pane (window, location);
     }
 }
 

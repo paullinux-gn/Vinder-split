@@ -32,6 +32,15 @@ main (int   argc,
 {
     gint retval;
     NautilusApplication *application;
+
+#if VINDER_SPLIT_PROFILE
+    /* Rapid tab closes crash the default GSK renderer in this split profile. */
+    if (g_getenv ("GSK_RENDERER") == NULL)
+    {
+        g_setenv ("GSK_RENDERER", "cairo", TRUE);
+    }
+#endif
+
     /* Initialize gettext support */
     setlocale (LC_ALL, "");
     bindtextdomain (GETTEXT_PACKAGE, LOCALEDIR);
