@@ -83,7 +83,7 @@ Vinder retains the core Nautilus file-management tools:
 
 ## Install
 
-The 1.0 release is available as source from the [GitHub release](https://github.com/paullinux-gn/Vinder-split/releases/tag/split-v1.0). Build it with the Vinder-split profile by following the source-build steps below. The application ID is `io.github.paullinux_gn.VinderSplit`.
+The 1.0 release includes source and a Flatpak bundle on the [GitHub release page](https://github.com/paullinux-gn/Vinder-split/releases/tag/split-v1.0). You can also build it from source or as a Flatpak using the Vinder-split manifest. The application ID is `io.github.paullinux_gn.VinderSplit`.
 
 ## Build and run from source
 
@@ -101,7 +101,20 @@ XDG_DATA_DIRS="$PWD/local/share:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}" \
 
 The installed executable retains the name `nautilus`. Using `-Dprofile=Devel` instead builds the upstream development identity `org.gnome.Nautilus.Devel`.
 
-The source tree retains the upstream Vinder Flatpak manifest; it builds the Vinder application profile, not the Vinder-split profile.
+## Build a Flatpak
+
+Install Flatpak Builder and configure Flathub, then run these commands from the repository root:
+
+```sh
+flatpak-builder --user --disable-rofiles-fuse --force-clean \
+  --install-deps-from=flathub --repo=repo build-dir \
+  build-aux/flatpak/io.github.paullinux_gn.VinderSplit.json
+flatpak build-bundle repo Vinder-split-1.0-x86_64.flatpak \
+  io.github.paullinux_gn.VinderSplit stable
+flatpak install --user ./Vinder-split-1.0-x86_64.flatpak
+```
+
+The original Vinder manifest remains available as `build-aux/flatpak/io.github.paullinux_gn.Vinder.json`.
 
 ## Source, support, and licensing
 

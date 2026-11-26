@@ -23,3 +23,5 @@ meson install -C build
 ```
 
 The application ID is `io.github.paullinux_gn.VinderSplit`.
+
+The release page includes a GNOME 51 Flatpak bundle for x86_64 and its SHA256 checksum file.
