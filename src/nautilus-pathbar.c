@@ -471,6 +471,15 @@ nautilus_path_bar_set_property (GObject      *object,
         case PROP_WINDOW_SLOT:
         {
             g_set_weak_pointer (&self->slot, g_value_get_object (value));
+            gtk_widget_set_sensitive (GTK_WIDGET (self), self->slot != NULL);
+            if (self->slot == NULL)
+            {
+                unschedule_pop_up_context_menu (self);
+                if (self->button_menu_popover != NULL)
+                {
+                    gtk_popover_popdown (GTK_POPOVER (self->button_menu_popover));
+                }
+            }
         }
         break;
 
@@ -615,6 +624,11 @@ pathbar_popup_attributes_ready (NautilusFile *file,
 
     self = NAUTILUS_PATH_BAR (data);
 
+    if (self->slot == NULL)
+    {
+        return;
+    }
+
     g_return_if_fail (file == self->context_menu_file);
 
     real_pop_up_pathbar_context_menu (self);
@@ -667,7 +681,7 @@ static void
 pop_up_pathbar_context_menu (NautilusPathBar *self,
                              NautilusFile    *file)
 {
-    if (file != NULL &&
+    if (self->slot != NULL && file != NULL &&
         nautilus_window_slot_get_mode (self->slot) == NAUTILUS_MODE_BROWSE)
     {
         schedule_pop_up_context_menu (self, file);
@@ -695,6 +709,10 @@ on_click_gesture_pressed (GtkGestureClick *gesture,
 
     button_data = BUTTON_DATA (user_data);
     self = button_data->path_bar;
+    if (self->slot == NULL)
+    {
+        return;
+    }
     current_button = gtk_gesture_single_get_current_button (GTK_GESTURE_SINGLE (gesture));
     state = gtk_event_controller_get_current_event_state (GTK_EVENT_CONTROLLER (gesture));
     gboolean is_browse_mode = nautilus_window_slot_get_mode (self->slot) == NAUTILUS_MODE_BROWSE;
@@ -784,7 +802,10 @@ switch_location (ButtonData *button_data)
     NautilusPathBar *self = button_data->path_bar;
     g_autoptr (GFile) location = nautilus_file_get_location (button_data->file);
 
-    g_return_if_fail (self->slot != NULL);
+    if (self->slot == NULL)
+    {
+        return;
+    }
 
     nautilus_window_slot_open_location_full (self->slot,
                                              location,
@@ -835,9 +856,11 @@ on_drag_motion (GtkDropTarget *target,
     const GValue *value;
     graphene_point_t start;
 
-    if (nautilus_window_slot_get_mode (self->slot) != NAUTILUS_MODE_BROWSE)
+    if (self->slot == NULL ||
+        nautilus_window_slot_get_mode (self->slot) != NAUTILUS_MODE_BROWSE)
     {
         gtk_drop_target_reject (target);
+        return 0;
     }
 
     value = gtk_drop_target_get_value (target);
@@ -891,7 +914,10 @@ on_drag_drop (GtkDropTarget *target,
     g_autoptr (GFile) target_location = NULL;
     GdkDragAction action;
 
-    g_return_val_if_fail (self->slot != NULL, FALSE);
+    if (self->slot == NULL)
+    {
+        return FALSE;
+    }
 
     if (nautilus_window_slot_get_mode (self->slot) != NAUTILUS_MODE_BROWSE)
     {

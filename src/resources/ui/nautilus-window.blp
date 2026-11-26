@@ -235,17 +235,47 @@ template $NautilusWindow: Adw.ApplicationWindow {
                   wide-handle: false;
                   can-focus: false;
                   position: 0;
-                  resize-start-child: false;
-                  resize-end-child: false;
+                  resize-start-child: true;
+                  resize-end-child: true;
+                  shrink-start-child: false;
+                  shrink-end-child: false;
                   styles ["vinder-pane-split"]
 
-                  start-child: Adw.TabBar main_tab_bar {
-                    view: tab_view;
+                  start-child: Box main_tab_bar_container {
+                    orientation: horizontal;
+                    hexpand: true;
+
+                    Gtk.ScrolledWindow main_tab_bar {
+                      width-request: 220;
+                      height-request: 34;
+                      hexpand: true;
+                      hscrollbar-policy: automatic;
+                      vscrollbar-policy: never;
+                      child: Box main_tab_strip {
+                        orientation: horizontal;
+                        spacing: 4;
+                        margin-start: 8;
+                      };
+                    }
                   };
 
-                  end-child: Adw.TabBar secondary_tab_bar {
-                    visible: false;
-                    view: secondary_tab_view;
+                  end-child: Box secondary_tab_bar_container {
+                    orientation: horizontal;
+                    hexpand: true;
+
+                    Gtk.ScrolledWindow secondary_tab_bar {
+                      width-request: 220;
+                      height-request: 34;
+                      hexpand: true;
+                      visible: false;
+                      hscrollbar-policy: automatic;
+                      vscrollbar-policy: never;
+                      child: Box secondary_tab_strip {
+                        orientation: horizontal;
+                        spacing: 4;
+                        margin-start: 8;
+                      };
+                    }
                   };
                 }
 
@@ -253,9 +283,12 @@ template $NautilusWindow: Adw.ApplicationWindow {
                   orientation: horizontal;
                   wide-handle: false;
                   position: 0;
+                  shrink-start-child: false;
+                  shrink-end-child: false;
                   styles ["vinder-pane-split"]
 
                   start-child: Box main_pane {
+                    width-request: 220;
                     orientation: vertical;
 
                     Adw.TabView tab_view {
@@ -267,10 +300,12 @@ template $NautilusWindow: Adw.ApplicationWindow {
                       create-window => $tab_view_create_window_cb();
                       page-attached => $tab_view_page_attached_cb();
                       page-detached => $tab_view_page_detached_cb();
+                      page-reordered => $tab_view_page_reordered_cb();
                     }
                   };
 
                   end-child: Box secondary_pane {
+                    width-request: 220;
                     orientation: vertical;
                     visible: false;
 
@@ -283,6 +318,7 @@ template $NautilusWindow: Adw.ApplicationWindow {
                       create-window => $tab_view_create_window_cb();
                       page-attached => $tab_view_page_attached_cb();
                       page-detached => $tab_view_page_detached_cb();
+                      page-reordered => $tab_view_page_reordered_cb();
                     }
                   };
                 };
@@ -333,8 +369,7 @@ template $NautilusWindow: Adw.ApplicationWindow {
       toolbar.show-history-controls: false;
       action_bar.revealed: true;
       progress_indicator.popover-position: 2;
-      main_tab_bar.visible: false;
-      secondary_tab_bar.visible: false;
+      tab_bars_paned.visible: false;
     }
   }
 }

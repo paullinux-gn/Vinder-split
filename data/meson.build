@@ -46,11 +46,17 @@ appdata_conf = configuration_data()
 
 appdata_conf.set('appid', application_id)
 appdata_conf.set('app-name', application_name)
-appdata_conf.set('vinder-release', profile == 'Vinder' ? '<release version="1.8.1" date="2026-11-24"/><release version="1.8" date="2026-11-24"/><release version="1.7" date="2026-11-21"/><release version="1.6" date="2026-11-21"/><release version="1.5.0" date="2026-11-20"/><release version="1.4.9" date="2026-11-20"/><release version="1.4.8" date="2026-11-17"/><release version="1.4.7" date="2026-11-17"/><release version="1.3" date="2026-11-14"/><release version="1.2" date="2026-11-14"/><release version="1.1" date="2026-11-14"/><release version="1.0" date="2026-11-14"/>' : '')
-appdata_conf.set('upstream-release-start', profile == 'Vinder' ? '<!--' : '')
-appdata_conf.set('upstream-release-end', profile == 'Vinder' ? '-->' : '')
+vinder_releases = ''
+if profile == 'Vinder'
+  vinder_releases = '<release version="1.8.1" date="2026-11-24"/><release version="1.8" date="2026-11-24"/><release version="1.7" date="2026-11-21"/><release version="1.6" date="2026-11-21"/><release version="1.5.0" date="2026-11-20"/><release version="1.4.9" date="2026-11-20"/><release version="1.4.8" date="2026-11-17"/><release version="1.4.7" date="2026-11-17"/><release version="1.3" date="2026-11-14"/><release version="1.2" date="2026-11-14"/><release version="1.1" date="2026-11-14"/><release version="1.0" date="2026-11-14"/>'
+elif profile == 'VinderSplit'
+  vinder_releases = '<release version="1.0" date="2026-11-26" type="stable"/>'
+endif
+appdata_conf.set('vinder-release', vinder_releases)
+appdata_conf.set('upstream-release-start', profile == 'Vinder' or profile == 'VinderSplit' ? '<!--' : '')
+appdata_conf.set('upstream-release-end', profile == 'Vinder' or profile == 'VinderSplit' ? '-->' : '')
 
-release_version = meson.project_version()
+release_version = profile == 'VinderSplit' ? '1.0' : meson.project_version()
 python = find_program('python3', required: false)
 if python.found()
   args = '''exec("import re\nprint(re.sub(r'^(.+)(\\.)([a-z]+.*)$', r'\\1~\\3', '@0@'))")'''

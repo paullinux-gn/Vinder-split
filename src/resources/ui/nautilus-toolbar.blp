@@ -98,12 +98,21 @@ template $NautilusToolbar: Adw.Bin {
     }
 
     [end]
-    ToggleButton {
-      visible: bind template.show-view-controls;
-      icon-name: "view-dual-symbolic";
-      tooltip-text: _("Split View (F3)");
-      action-name: "win.toggle-split-view";
-      focus-on-click: false;
+    Adw.ToggleGroup pane_toggle_group {
+      valign: center;
+      notify::active-name => $on_pane_toggle_changed();
+
+      Adw.Toggle {
+        name: "single";
+        icon-name: "view-paged-symbolic";
+        tooltip: _("Single Pane");
+      }
+
+      Adw.Toggle {
+        name: "duo";
+        icon-name: "view-dual-symbolic";
+        tooltip: _("Duo Pane (F3)");
+      }
     }
 
     [end]

@@ -186,6 +186,8 @@ endif
 
 if profile == 'Vinder'
   version_string = '1.8.1'
+elif profile == 'VinderSplit'
+  version_string = '1.0'
 elif profile == ''
   # Example: 40.0
   version_string = meson.project_version()
@@ -200,7 +202,7 @@ conf.set_quoted('LOCALEDIR', join_paths(prefix, localedir))
 conf.set_quoted('NAUTILUS_DATADIR', join_paths(prefix, datadir, 'nautilus'))
 conf.set_quoted('NAUTILUS_EXTENSIONDIR', join_paths(prefix, extensiondir))
 conf.set_quoted('APPLICATION_NAME', application_name)
-conf.set_quoted('PACKAGE_VERSION', profile == 'Vinder' ? version_string : meson.project_version())
+conf.set_quoted('PACKAGE_VERSION', profile == 'Vinder' or profile == 'VinderSplit' ? version_string : meson.project_version())
 conf.set_quoted('PROFILE', profile)
 conf.set('VINDER_SPLIT_PROFILE', profile == 'VinderSplit' ? 1 : 0)
 conf.set_quoted('VERSION', version_string)

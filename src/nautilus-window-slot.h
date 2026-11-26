@@ -26,6 +26,7 @@ typedef struct
 } NautilusNavigationState;
 
 NautilusWindowSlot * nautilus_window_slot_new              (NautilusMode        mode);
+void                 nautilus_window_slot_prepare_for_close (NautilusWindowSlot *slot);
 
 void nautilus_window_slot_open_location_full               (NautilusWindowSlot *slot,
                                                             GFile              *location,

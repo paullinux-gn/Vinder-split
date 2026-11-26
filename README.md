@@ -1,8 +1,8 @@
-# Vinder
+# Vinder-split
 
 Vinder is a file manager for GNOME, based on [GNOME Files (Nautilus)](https://apps.gnome.org/Nautilus/). It combines familiar file management with a customisable interface, three folder views, independent sidebar shortcuts, and background thumbnail preparation.
 
-**Current release: [Vinder 1.8.1](https://github.com/paullinux-gn/vinder/releases/tag/v1.8.1).** Vinder has its own application ID and can be installed alongside GNOME Files.
+**Current release: [Vinder-split 1.0](https://github.com/paullinux-gn/Vinder-split/releases/tag/split-v1.0).** Vinder-split adds a two-pane workflow to the Vinder file manager and can be installed alongside GNOME Files and Vinder.
 
 ## Screenshots
 
@@ -81,26 +81,9 @@ Vinder retains the core Nautilus file-management tools:
 - Optional context-menu actions for creating links and deleting permanently; single- or double-click opening, folders-first sorting, and date/time formatting in Preferences.
 - **Open Terminal Here** opens the configured default terminal in the relevant folder, including from the folder path menu. Terminal integration depends on the host's terminal setup.
 
-## Install the Flatpak
+## Install
 
-Download **Vinder-1.8.1-x86_64.flatpak** from the [1.8.1 release](https://github.com/paullinux-gn/vinder/releases/tag/v1.8.1). The bundle uses the **GNOME 51 runtime** from Flathub. If Flathub is not configured, follow the [Flathub setup instructions](https://flathub.org/setup) for your distribution first.
-
-From the folder containing the download:
-
-```sh
-flatpak install --user ./Vinder-1.8.1-x86_64.flatpak
-flatpak run io.github.paullinux_gn.Vinder
-```
-
-To replace an existing user installation:
-
-```sh
-flatpak install --user --reinstall ./Vinder-1.8.1-x86_64.flatpak
-```
-
-If Vinder is installed system-wide, use `--system` instead of `--user`. Keep the installation scope consistent when updating. Close Vinder before reinstalling, then reopen it.
-
-The application ID is `io.github.paullinux_gn.Vinder`. The Flatpak has broad host-file access so it can function as a file manager.
+The 1.0 release is available as source from the [GitHub release](https://github.com/paullinux-gn/Vinder-split/releases/tag/split-v1.0). Build it with the Vinder-split profile by following the source-build steps below. The application ID is `io.github.paullinux_gn.VinderSplit`.
 
 ## Build and run from source
 
@@ -109,7 +92,7 @@ Install Meson, Ninja, a C toolchain, the Blueprint compiler, and the Nautilus de
 Build the **Vinder profile** to enable Vinder's application identity and independent shortcuts:
 
 ```sh
-meson setup build -Dprofile=Vinder --prefix="$PWD/local"
+meson setup build -Dprofile=VinderSplit --prefix="$PWD/local"
 meson compile -C build
 meson install -C build
 XDG_DATA_DIRS="$PWD/local/share:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}" \
@@ -118,13 +101,13 @@ XDG_DATA_DIRS="$PWD/local/share:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}" \
 
 The installed executable retains the name `nautilus`. Using `-Dprofile=Devel` instead builds the upstream development identity `org.gnome.Nautilus.Devel`.
 
-The Flatpak manifest is [build-aux/flatpak/io.github.paullinux_gn.Vinder.json](build-aux/flatpak/io.github.paullinux_gn.Vinder.json).
+The source tree retains the upstream Vinder Flatpak manifest; it builds the Vinder application profile, not the Vinder-split profile.
 
 ## Source, support, and licensing
 
-Vinder is developed and maintained by **Paul Beyens ([paullinux-gn](https://github.com/paullinux-gn))**. The inherited Nautilus authors are credited for the upstream code; they are not listed as members of the Vinder development team. GitHub's automatic Contributors list includes authors from the inherited Nautilus commit history.
+Vinder-split is developed and maintained by **Paul Beyens ([paullinux-gn](https://github.com/paullinux-gn))**. The inherited Nautilus authors are credited for the upstream code; they are not listed as members of the Vinder-split development team. GitHub's automatic Contributors list includes authors from the inherited Nautilus commit history.
 
-Vinder builds on the work of the [GNOME Nautilus contributors](https://gitlab.gnome.org/GNOME/nautilus). See [LICENSE](LICENSE) for licensing terms and [the 1.8.1 release notes](RELEASE_NOTES_1.8.1.md) for the release overview. Report Vinder issues on [GitHub](https://github.com/paullinux-gn/vinder/issues).
+Vinder-split builds on the work of Vinder and the [GNOME Nautilus contributors](https://gitlab.gnome.org/GNOME/nautilus). See [LICENSE](LICENSE) for licensing terms and [the 1.0 release notes](RELEASE_NOTES_1.0.md) for the release overview. Report issues on [GitHub](https://github.com/paullinux-gn/Vinder-split/issues).
 
 ## Nautilus backend fixes
 
