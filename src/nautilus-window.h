@@ -39,6 +39,12 @@ void nautilus_window_open_location_full               (NautilusWindow     *windo
                                                        NautilusFileList   *selection);
 
 void             nautilus_window_new_tab              (NautilusWindow    *window);
+void             nautilus_window_open_location_in_other_pane (NautilusWindow *window,
+                                                              GFile          *location);
+void             nautilus_window_sync_folder_view_mode (NautilusWindow     *window,
+                                                         NautilusWindowSlot *source_slot,
+                                                         GFile              *location,
+                                                         const char         *mode);
 
 gboolean
 nautilus_window_has_open_location (NautilusWindow *self,

@@ -15,6 +15,7 @@
 #include "nautilus-location-entry.h"
 #include "nautilus-pathbar.h"
 #include "nautilus-view-controls.h"
+#include "nautilus-window.h"
 #include "nautilus-window-slot.h"
 
 struct _NautilusToolbar
@@ -32,6 +33,8 @@ struct _NautilusToolbar
     GtkWidget *search_button_stack;
     GtkWidget *search_button;
     GtkWidget *search_button_placeholder;
+    AdwToggleGroup *pane_toggle_group;
+    GSimpleAction *pane_action;
 
     gboolean show_location_entry;
     GtkWidget *focus_before_location_entry;
@@ -63,6 +66,74 @@ enum
 static GParamSpec *properties[NUM_PROPERTIES] = { NULL, };
 
 G_DEFINE_FINAL_TYPE (NautilusToolbar, nautilus_toolbar, ADW_TYPE_BIN);
+
+static void sync_pane_toggle (NautilusToolbar *self);
+static void on_pane_action_state_changed (GSimpleAction   *action,
+                                         GParamSpec      *pspec,
+                                         NautilusToolbar *self);
+
+static void
+bind_pane_action (NautilusToolbar *self)
+{
+    NautilusWindow *window;
+
+    if (self->pane_action != NULL)
+    {
+        return;
+    }
+
+    window = NAUTILUS_WINDOW (gtk_widget_get_ancestor (GTK_WIDGET (self),
+                                                       NAUTILUS_TYPE_WINDOW));
+    if (window == NULL)
+    {
+        return;
+    }
+
+    self->pane_action = G_SIMPLE_ACTION (g_action_map_lookup_action (G_ACTION_MAP (window),
+                                                                    "toggle-split-view"));
+    if (self->pane_action != NULL)
+    {
+        g_signal_connect_object (self->pane_action, "notify::state",
+                                 G_CALLBACK (on_pane_action_state_changed), self, 0);
+        sync_pane_toggle (self);
+    }
+}
+
+static void
+sync_pane_toggle (NautilusToolbar *self)
+{
+    if (self->pane_action == NULL)
+    {
+        return;
+    }
+
+    g_autoptr (GVariant) state = g_action_get_state (G_ACTION (self->pane_action));
+    adw_toggle_group_set_active_name (self->pane_toggle_group,
+                                      g_variant_get_boolean (state) ? "duo" : "single");
+}
+
+static void
+on_pane_action_state_changed (GSimpleAction   *action,
+                              GParamSpec      *pspec,
+                              NautilusToolbar *self)
+{
+    sync_pane_toggle (self);
+}
+
+static void
+on_pane_toggle_changed (AdwToggleGroup *group,
+                        GParamSpec     *pspec,
+                        NautilusToolbar *self)
+{
+    const char *name = adw_toggle_group_get_active_name (group);
+
+    bind_pane_action (self);
+    if (name != NULL && self->pane_action != NULL)
+    {
+        g_action_change_state (G_ACTION (self->pane_action),
+                               g_variant_new_boolean (g_str_equal (name, "duo")));
+    }
+}
 
 static void nautilus_toolbar_set_window_slot_real (NautilusToolbar    *self,
                                                    NautilusWindowSlot *slot);
@@ -102,7 +173,7 @@ static void
 nautilus_toolbar_open_location_entry (NautilusToolbar *self,
                                       const char      *special_text)
 {
-    if (self->show_location_entry)
+    if (self->show_location_entry || self->window_slot == NULL)
     {
         return;
     }
@@ -160,6 +231,10 @@ on_path_bar_open_location (NautilusPathBar   *path_bar,
     }
     else
     {
+        if (self->window_slot == NULL)
+        {
+            return;
+        }
         nautilus_window_slot_open_location_full (self->window_slot, location, NULL);
     }
 }
@@ -200,7 +275,10 @@ on_location_entry_location_changed (NautilusLocationEntry *entry,
     NautilusToolbar *self = NAUTILUS_TOOLBAR (user_data);
 
     nautilus_toolbar_close_location_entry (self);
-    nautilus_window_slot_open_location_full (self->window_slot, location, NULL);
+    if (self->window_slot != NULL)
+    {
+        nautilus_window_slot_open_location_full (self->window_slot, location, NULL);
+    }
 }
 
 static void
@@ -481,9 +559,11 @@ nautilus_toolbar_class_init (NautilusToolbarClass *klass)
     gtk_widget_class_bind_template_child (widget_class, NautilusToolbar, search_button_stack);
     gtk_widget_class_bind_template_child (widget_class, NautilusToolbar, search_button);
     gtk_widget_class_bind_template_child (widget_class, NautilusToolbar, search_button_placeholder);
+    gtk_widget_class_bind_template_child (widget_class, NautilusToolbar, pane_toggle_group);
 
     gtk_widget_class_bind_template_callback (widget_class, on_location_entry_location_changed);
     gtk_widget_class_bind_template_callback (widget_class, nautilus_toolbar_close_location_entry);
+    gtk_widget_class_bind_template_callback (widget_class, on_pane_toggle_changed);
 
     gtk_widget_class_set_accessible_role (widget_class, GTK_ACCESSIBLE_ROLE_TOOLBAR);
 
@@ -553,6 +633,7 @@ nautilus_toolbar_set_window_slot_real (NautilusToolbar    *self,
                                        NautilusWindowSlot *slot)
 {
     self->window_slot = slot;
+    bind_pane_action (self);
 
     if (self->window_slot != NULL)
     {

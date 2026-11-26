@@ -6,10 +6,18 @@
  * Authors: Ramiro Estrugo <ramiro@eazel.com>
  */
 
+#include <config.h>
+
 #include "nautilus-global-preferences.h"
 #include "vinder-settings-migration.h"
 
+#define G_SETTINGS_ENABLE_BACKEND
+#include <gio/gsettingsbackend.h>
+#undef G_SETTINGS_ENABLE_BACKEND
+
 #include "nautilus-file-utilities.h"
+
+#include <string.h>
 
 GSettings *nautilus_preferences;
 GSettings *nautilus_compression_preferences;
@@ -31,6 +39,110 @@ GSettings *localsearch_preferences;
 static gboolean mouse_extra_buttons = TRUE;
 static guint mouse_forward_button = 9;
 static guint mouse_back_button = 8;
+
+#if VINDER_SPLIT_PROFILE
+static GSettingsBackend *vinder_split_settings_backend;
+
+static gboolean
+migrate_split_position_setting (const char *filename)
+{
+    g_autoptr (GKeyFile) key_file = g_key_file_new ();
+    g_autoptr (GError) error = NULL;
+    g_autofree char *value = NULL;
+    double fraction;
+
+    if (!g_key_file_load_from_file (key_file, filename, G_KEY_FILE_KEEP_COMMENTS, &error) ||
+        !g_key_file_has_key (key_file, "window-state", "vinder-split-position", NULL))
+    {
+        return TRUE;
+    }
+
+    value = g_key_file_get_value (key_file, "window-state", "vinder-split-position", NULL);
+    if (value == NULL || strpbrk (value, ".eE") != NULL)
+    {
+        return TRUE;
+    }
+
+    /* Older builds stored the divider as a pixel offset. Convert it using the
+     * saved window width so it remains useful when the window size changes. */
+    gint old_position = g_key_file_get_integer (key_file, "window-state",
+                                                "vinder-split-position", NULL);
+    gint window_width = 0;
+    g_autofree char *initial_size = g_key_file_get_value (key_file, "window-state",
+                                                           "initial-size", NULL);
+    if (initial_size != NULL)
+    {
+        g_autoptr (GVariant) size = g_variant_parse (G_VARIANT_TYPE ("(ii)"),
+                                                    initial_size, NULL, NULL, NULL);
+        if (size != NULL)
+        {
+            g_variant_get_child (size, 0, "i", &window_width);
+        }
+    }
+
+    fraction = old_position > 0 && window_width > 0
+               ? (double) old_position / window_width : 0.5;
+    g_key_file_set_double (key_file, "window-state", "vinder-split-position",
+                           CLAMP (fraction, 0.2, 0.8));
+
+    if (!g_key_file_save_to_file (key_file, filename, &error))
+    {
+        g_warning ("Could not migrate Vinder-split divider setting in '%s': %s",
+                   filename, error->message);
+        return FALSE;
+    }
+
+    return TRUE;
+}
+
+static GSettings *
+new_vinder_settings (const char *schema_id)
+{
+    GSettingsSchemaSource *source = g_settings_schema_source_get_default ();
+    g_autoptr (GSettingsSchema) schema = g_settings_schema_source_lookup (source, schema_id, TRUE);
+
+    if (schema == NULL)
+    {
+        g_error ("Required Vinder settings schema '%s' is unavailable", schema_id);
+    }
+
+    if (vinder_split_settings_backend == NULL)
+    {
+        g_autofree char *directory = g_build_filename (g_get_user_config_dir (),
+                                                        "vinder-split", NULL);
+        g_autofree char *filename = g_build_filename (directory, "settings.ini", NULL);
+
+        if (g_mkdir_with_parents (directory, 0700) != 0)
+        {
+            g_warning ("Could not create Vinder-split settings directory '%s'; using in-memory settings",
+                       directory);
+            vinder_split_settings_backend = g_memory_settings_backend_new ();
+        }
+        else
+        {
+            if (migrate_split_position_setting (filename))
+            {
+                vinder_split_settings_backend = g_keyfile_settings_backend_new (filename,
+                                                                                 "/io/github/paullinux_gn/Vinder/",
+                                                                                 "vinder-split");
+            }
+            else
+            {
+                g_warning ("Using in-memory settings because the old divider value could not be migrated");
+                vinder_split_settings_backend = g_memory_settings_backend_new ();
+            }
+        }
+    }
+
+    return g_settings_new_full (schema, vinder_split_settings_backend, NULL);
+}
+#else
+static GSettings *
+new_vinder_settings (const char *schema_id)
+{
+    return g_settings_new (schema_id);
+}
+#endif
 
 static void
 use_extra_mouse_buttons_changed (gpointer callback_data)
@@ -82,17 +194,19 @@ nautilus_global_preferences_init (void)
 
     initialized = TRUE;
 
-    nautilus_preferences = g_settings_new ("io.github.paullinux_gn.Vinder.preferences");
-    nautilus_compression_preferences = g_settings_new ("io.github.paullinux_gn.Vinder.compression");
-    nautilus_window_state = g_settings_new ("io.github.paullinux_gn.Vinder.window-state");
-    nautilus_icon_view_preferences = g_settings_new ("io.github.paullinux_gn.Vinder.icon-view");
-    nautilus_list_view_preferences = g_settings_new ("io.github.paullinux_gn.Vinder.list-view");
+    nautilus_preferences = new_vinder_settings ("io.github.paullinux_gn.Vinder.preferences");
+    nautilus_compression_preferences = new_vinder_settings ("io.github.paullinux_gn.Vinder.compression");
+    nautilus_window_state = new_vinder_settings ("io.github.paullinux_gn.Vinder.window-state");
+    nautilus_icon_view_preferences = new_vinder_settings ("io.github.paullinux_gn.Vinder.icon-view");
+    nautilus_list_view_preferences = new_vinder_settings ("io.github.paullinux_gn.Vinder.list-view");
     /* Vinder keeps its own settings; copy the old shared ones over, once. */
+#if !VINDER_SPLIT_PROFILE
     vinder_settings_migrate_legacy (nautilus_preferences,
                                     nautilus_compression_preferences,
                                     nautilus_icon_view_preferences,
                                     nautilus_list_view_preferences,
                                     nautilus_window_state);
+#endif
     /* Some settings such as show hidden files are shared between Nautilus and GTK file chooser */
     gtk_filechooser_preferences = g_settings_new_with_path ("org.gtk.gtk4.Settings.FileChooser",
                                                             "/org/gtk/gtk4/settings/file-chooser/");

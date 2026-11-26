@@ -11,6 +11,10 @@
       <attribute name="action">pathbar.open-item-new-tab</attribute>
     </item>
     <item>
+      <attribute name="label" translatable="yes">Open in Other _Pane</attribute>
+      <attribute name="action">pathbar.open-item-other-pane</attribute>
+    </item>
+    <item>
       <attribute name="label" translatable="yes">_Properties</attribute>
       <attribute name="action">pathbar.properties</attribute>
     </item>

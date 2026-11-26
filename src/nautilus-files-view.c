@@ -66,6 +66,7 @@
 #include "nautilus-view-item.h"
 #include "nautilus-view-model.h"
 #include "nautilus-window-slot.h"
+#include "nautilus-window.h"
 
 /* Minimum starting update interval */
 #define UPDATE_INTERVAL_MIN 100
@@ -1407,6 +1408,31 @@ action_open_item_new_tab (GSimpleAction *action,
 }
 
 static void
+action_open_item_other_pane (GSimpleAction *action,
+                             GVariant      *state,
+                             gpointer       user_data)
+{
+    NautilusFilesView *view = NAUTILUS_FILES_VIEW (user_data);
+    g_autolist (NautilusFile) selection = nautilus_files_view_get_selection (view);
+
+    if (selection == NULL || selection->next != NULL)
+    {
+        return;
+    }
+
+    NautilusWindow *window = NAUTILUS_WINDOW (gtk_widget_get_ancestor (GTK_WIDGET (view),
+                                                                       NAUTILUS_TYPE_WINDOW));
+    if (window != NULL && nautilus_file_opens_in_view (selection->data))
+    {
+        g_autoptr (GFile) location = nautilus_file_get_activation_location (selection->data);
+        if (location != NULL)
+        {
+            nautilus_window_open_location_in_other_pane (window, location);
+        }
+    }
+}
+
+static void
 sandboxed_choose_program_callback (GObject      *source_object,
                                    GAsyncResult *res,
                                    gpointer      user_data)
@@ -2448,6 +2474,14 @@ open_terminal_at_location (NautilusFilesView *view,
         {
             path += strlen (host_root);
         }
+
+        /* GNOME Console opens the directory on the host through its
+         * org.freedesktop.Application.Open API. This avoids granting the
+         * sandbox org.freedesktop.Flatpak access just to run flatpak-spawn.
+         */
+        g_autoptr (GFile) host_location = g_file_new_for_path (path);
+        open_console_at_location (view, host_location);
+        return;
     }
 
     /* A running terminal may handle the request in another process, so the
@@ -2456,22 +2490,11 @@ open_terminal_at_location (NautilusFilesView *view,
                                                  path, NULL);
     const char *new_window = use_ptyxis ? "--new-window" : NULL;
 
-    if (sandboxed)
-    {
-        g_autofree char *host_dir = g_strconcat ("--directory=", path, NULL);
+    g_autoptr (GSubprocessLauncher) launcher = g_subprocess_launcher_new (G_SUBPROCESS_FLAGS_NONE);
 
-        process = g_subprocess_new (G_SUBPROCESS_FLAGS_NONE, NULL,
-                                    "flatpak-spawn", "--host", host_dir,
-                                    program, terminal_dir, new_window, NULL);
-    }
-    else
-    {
-        g_autoptr (GSubprocessLauncher) launcher = g_subprocess_launcher_new (G_SUBPROCESS_FLAGS_NONE);
-
-        g_subprocess_launcher_set_cwd (launcher, path);
-        process = g_subprocess_launcher_spawn (launcher, NULL, program, terminal_dir,
-                                               new_window, NULL);
-    }
+    g_subprocess_launcher_set_cwd (launcher, path);
+    process = g_subprocess_launcher_spawn (launcher, NULL, program, terminal_dir,
+                                           new_window, NULL);
 
     g_autoptr (GFile) host_location = g_file_new_for_path (path);
     if (process == NULL)
@@ -6791,6 +6814,7 @@ static const GActionEntry view_entries[] =
     { .name = "open-current-directory-with-files", .activate = action_open_current_directory_with_files },
     { .name = "open-item-new-window", .activate = action_open_item_new_window },
     { .name = "open-item-new-tab", .activate = action_open_item_new_tab },
+    { .name = "open-item-other-pane", .activate = action_open_item_other_pane },
     { .name = "cut", .activate = action_cut},
     { .name = "copy", .activate = action_copy},
     { .name = "create-link-in-place", .activate = action_create_links_in_place },
@@ -7326,6 +7350,9 @@ nautilus_files_view_update_actions_state (NautilusFilesView *self)
     files_action_set_enabled (self, "open-item-new-window",
                               mode == NAUTILUS_MODE_BROWSE &&
                               item_opens_in_view);
+    files_action_set_enabled (self, "open-item-other-pane",
+                              mode == NAUTILUS_MODE_BROWSE &&
+                              list_len_is_one (selection) && item_opens_in_view);
     files_action_set_enabled (self, "run-in-terminal",
                               mode == NAUTILUS_MODE_BROWSE &&
                               can_run_in_terminal (selection));

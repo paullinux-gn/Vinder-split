@@ -15,6 +15,7 @@
 #include "nautilus-scheme.h"
 #include "nautilus-ui-utilities.h"
 #include "nautilus-window-slot.h"
+#include "nautilus-window.h"
 
 /* Assume sort section is second item in view_menu. See nautilus-view-controls.blp */
 #define SORT_ITEM_POSITION 1
@@ -111,6 +112,16 @@ on_view_button_toggled (AdwToggleGroup       *group,
                            nautilus_files_view_get_view_id (view) == NAUTILUS_VIEW_LIST_ID;
 
     vinder_folder_set_view_mode (folder, mode);
+
+    if (changed)
+    {
+        NautilusWindow *window = NAUTILUS_WINDOW (gtk_widget_get_ancestor (GTK_WIDGET (self->window_slot),
+                                                                           NAUTILUS_TYPE_WINDOW));
+        if (window != NULL)
+        {
+            nautilus_window_sync_folder_view_mode (window, self->window_slot, location, mode);
+        }
+    }
 
     gtk_widget_activate_action (GTK_WIDGET (self), "slot.files-view-mode", "u",
                                  grid ? NAUTILUS_VIEW_GRID_ID : NAUTILUS_VIEW_LIST_ID);

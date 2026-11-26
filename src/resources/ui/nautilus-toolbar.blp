@@ -98,6 +98,24 @@ template $NautilusToolbar: Adw.Bin {
     }
 
     [end]
+    Adw.ToggleGroup pane_toggle_group {
+      valign: center;
+      notify::active-name => $on_pane_toggle_changed();
+
+      Adw.Toggle {
+        name: "single";
+        icon-name: "view-paged-symbolic";
+        tooltip: _("Single Pane");
+      }
+
+      Adw.Toggle {
+        name: "duo";
+        icon-name: "view-dual-symbolic";
+        tooltip: _("Duo Pane (F3)");
+      }
+    }
+
+    [end]
     Button new_folder_button {
       visible: bind template.show-new-folder-button;
       icon-name: "folder-new-symbolic";

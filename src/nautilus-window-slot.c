@@ -82,6 +82,7 @@ struct _NautilusWindowSlot
 
     /* Slot actions */
     GActionGroup *slot_action_group;
+    GtkRoot *active_root;
     GtkShortcutController *shortcuts;
 
     /* Current location. */
@@ -2546,6 +2547,8 @@ nautilus_window_slot_dispose (GObject *object)
     NautilusWindowSlot *self;
     self = NAUTILUS_WINDOW_SLOT (object);
 
+    nautilus_window_slot_prepare_for_close (self);
+
     nautilus_window_slot_clear_forward_list (self);
     nautilus_window_slot_clear_back_list (self);
     g_clear_list (&self->down_list, g_object_unref);
@@ -2566,8 +2569,6 @@ nautilus_window_slot_dispose (GObject *object)
         g_clear_object (&self->content_view);
     }
 
-    nautilus_window_slot_set_viewed_file (self, NULL);
-
     g_clear_object (&self->fd_holder);
 
     g_clear_object (&self->location);
@@ -2580,14 +2581,32 @@ nautilus_window_slot_dispose (GObject *object)
     g_clear_object (&self->slot_action_group);
     g_clear_object (&self->pending_search_query);
 
-    g_cancellable_cancel (self->find_mount_cancellable);
-    g_clear_object (&self->find_mount_cancellable);
-
     g_clear_object (&self->query_editor);
 
+    G_OBJECT_CLASS (nautilus_window_slot_parent_class)->dispose (object);
+}
+
+void
+nautilus_window_slot_prepare_for_close (NautilusWindowSlot *self)
+{
+    g_return_if_fail (NAUTILUS_IS_WINDOW_SLOT (self));
+
+    /* Cancel location work and detach monitors before AdwTabView unparents
+     * this slot. That keeps callbacks from racing widget teardown. */
     free_location_change (self);
 
-    G_OBJECT_CLASS (nautilus_window_slot_parent_class)->dispose (object);
+    if (self->find_mount_cancellable != NULL)
+    {
+        g_cancellable_cancel (self->find_mount_cancellable);
+        g_clear_object (&self->find_mount_cancellable);
+    }
+
+    nautilus_window_slot_set_viewed_file (self, NULL);
+
+    if (self->content_view != NULL)
+    {
+        nautilus_files_view_stop_loading (self->content_view);
+    }
 }
 
 static void
@@ -2905,20 +2924,28 @@ nautilus_window_slot_set_active (NautilusWindowSlot *self,
 
     if (self->active != active)
     {
-        GtkRoot *window = gtk_widget_get_root (GTK_WIDGET (self));
-
         self->active = active;
 
         if (active)
         {
+            GtkRoot *window = gtk_widget_get_root (GTK_WIDGET (self));
+
             /* sync window to new slot */
             nautilus_window_slot_sync_actions (self);
 
-            gtk_widget_insert_action_group (GTK_WIDGET (window), "slot", self->slot_action_group);
+            if (GTK_IS_WIDGET (window))
+            {
+                g_set_weak_pointer (&self->active_root, window);
+                gtk_widget_insert_action_group (GTK_WIDGET (window), "slot", self->slot_action_group);
+            }
         }
         else
         {
-            gtk_widget_insert_action_group (GTK_WIDGET (window), "slot", NULL);
+            if (GTK_IS_WIDGET (self->active_root))
+            {
+                gtk_widget_insert_action_group (GTK_WIDGET (self->active_root), "slot", NULL);
+            }
+            g_clear_weak_pointer (&self->active_root);
         }
 
         g_object_notify_by_pspec (G_OBJECT (self), properties[PROP_ACTIVE]);

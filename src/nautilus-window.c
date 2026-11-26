@@ -34,6 +34,7 @@
 #include "nautilus-file-operations.h"
 #include "nautilus-file-undo-manager.h"
 #include "nautilus-file-undo-operations.h"
+#include "nautilus-files-view.h"
 #include "nautilus-global-preferences.h"
 #include "nautilus-network-address-bar.h"
 #include "nautilus-module.h"
@@ -43,6 +44,7 @@
 #include "nautilus-sidebar.h"
 #include "nautilus-toolbar.h"
 #include "nautilus-ui-utilities.h"
+#include "nautilus-view-info.h"
 #include "nautilus-window-slot.h"
 #include "vinder-interface.h"
 
@@ -52,6 +54,33 @@ static void update_cursor (NautilusWindow *window);
 static void
 set_active_slot (NautilusWindow     *window,
                  NautilusWindowSlot *new_slot);
+static void window_slot_close (NautilusWindow     *window,
+                               NautilusWindowSlot *slot);
+static void remove_slot_from_window (NautilusWindowSlot *slot,
+                                     NautilusWindow     *window);
+static void action_toggle_split_view (GSimpleAction *action,
+                                      GVariant      *value,
+                                      gpointer       user_data);
+static void toggle_split_view_internal (GSimpleAction *action,
+                                        gboolean       enabled,
+                                        gboolean       create_seed_slot,
+                                        NautilusWindow *window);
+static void action_activate_split_view (GSimpleAction *action,
+                                        GVariant      *state,
+                                        gpointer       user_data);
+static void action_focus_other_pane (GSimpleAction *action,
+                                     GVariant      *state,
+                                     gpointer       user_data);
+static void action_move_tab_to_other_pane (GSimpleAction *action,
+                                           GVariant      *state,
+                                           gpointer       user_data);
+static void update_tab_strip (NautilusWindow *window,
+                              AdwTabView     *tab_view,
+                              GtkBox         *tab_strip);
+static void update_tab_strip_selection (NautilusWindow *window,
+                                        AdwTabView     *tab_view,
+                                        GtkBox         *tab_strip);
+static gboolean is_layout_reversed (void);
 
 /* Sanity check: highest mouse button value I could find was 14. 5 is our
  * lower threshold (well-documented to be the one of the button events for the
@@ -69,7 +98,15 @@ struct _NautilusWindow
 
     AdwTabOverview *tab_overview;
     AdwTabView *tab_view;
-    AdwTabBar *tab_bar;
+    AdwTabView *secondary_tab_view;
+    GtkWidget *main_tab_bar;
+    GtkWidget *secondary_tab_bar;
+    GtkWidget *secondary_tab_bar_container;
+    GtkBox *main_tab_strip;
+    GtkBox *secondary_tab_strip;
+    GtkPaned *tab_bars_paned;
+    AdwTabButton *tab_button;
+    GtkWidget *secondary_pane;
     AdwTabPage *menu_page;
 
     GList *slots;
@@ -77,6 +114,14 @@ struct _NautilusWindow
 
     GtkWidget *split_view;
     AdwToolbarView *files_toolbar_view;
+    GtkPaned *paned;
+    GtkWidget *main_pane;
+    gboolean split_enabled;
+    gboolean secondary_is_active;
+    gboolean transferring_pages;
+    gboolean closing_page;
+    gboolean closing;
+    guint collapse_source_id;
 
     /* Side Pane */
     NautilusSidebar *places_sidebar;
@@ -87,6 +132,7 @@ struct _NautilusWindow
 
     /* Toolbar */
     GtkWidget *toolbar;
+    AdwWindowTitle *window_title;
 
     GtkWidget *network_address_bar;
 
@@ -96,6 +142,84 @@ struct _NautilusWindow
      * break reference-counting cycles during finalization. */
     GtkPadController *pad_controller;
 };
+
+static AdwTabView *
+get_active_tab_view (NautilusWindow *window)
+{
+    AdwTabView *active = window->split_enabled && window->secondary_is_active
+                         ? window->secondary_tab_view : window->tab_view;
+    AdwTabView *other = active == window->tab_view
+                        ? window->secondary_tab_view : window->tab_view;
+
+    if (window->split_enabled && active != NULL && other != NULL &&
+        adw_tab_view_get_n_pages (active) == 0 && adw_tab_view_get_n_pages (other) > 0)
+    {
+        return other;
+    }
+
+    return active;
+}
+
+static AdwTabView *
+get_tab_view_for_slot (NautilusWindow     *window,
+                       NautilusWindowSlot *slot)
+{
+    GtkWidget *tab_view = gtk_widget_get_ancestor (GTK_WIDGET (slot), ADW_TYPE_TAB_VIEW);
+
+    if (tab_view == GTK_WIDGET (window->tab_view))
+    {
+        return window->tab_view;
+    }
+
+    if (window->secondary_tab_view != NULL &&
+        tab_view == GTK_WIDGET (window->secondary_tab_view))
+    {
+        return window->secondary_tab_view;
+    }
+
+    return NULL;
+}
+
+static void
+update_shared_tab_widgets (NautilusWindow *window)
+{
+    AdwTabView *view = get_active_tab_view (window);
+
+    adw_tab_button_set_view (window->tab_button, view);
+    adw_tab_overview_set_view (window->tab_overview, view);
+}
+
+static void
+set_active_pane (NautilusWindow *window,
+                 gboolean        secondary)
+{
+    AdwTabView *view;
+    AdwTabPage *page;
+
+    if (secondary && !window->split_enabled)
+    {
+        return;
+    }
+
+    window->secondary_is_active = secondary;
+    if (secondary)
+    {
+        gtk_widget_remove_css_class (window->main_pane, "active-pane");
+        gtk_widget_add_css_class (window->secondary_pane, "active-pane");
+    }
+    else
+    {
+        gtk_widget_remove_css_class (window->secondary_pane, "active-pane");
+        gtk_widget_add_css_class (window->main_pane, "active-pane");
+    }
+    update_shared_tab_widgets (window);
+    view = get_active_tab_view (window);
+    page = adw_tab_view_get_selected_page (view);
+    if (page != NULL)
+    {
+        set_active_slot (window, NAUTILUS_WINDOW_SLOT (adw_tab_page_get_child (page)));
+    }
+}
 
 enum
 {
@@ -153,7 +277,7 @@ get_current_page (NautilusWindow *window)
         return window->menu_page;
     }
 
-    return adw_tab_view_get_selected_page (window->tab_view);
+    return adw_tab_view_get_selected_page (get_active_tab_view (window));
 }
 
 static void
@@ -174,13 +298,12 @@ action_close_current_view (GSimpleAction *action,
     NautilusWindow *window = user_data;
     AdwTabPage *page = get_current_page (window);
 
-    if (adw_tab_view_get_n_pages (window->tab_view) <= 1)
+    if (page == NULL)
     {
-        nautilus_window_close (window);
         return;
     }
 
-    adw_tab_view_close_page (window->tab_view, page);
+    window_slot_close (window, NAUTILUS_WINDOW_SLOT (adw_tab_page_get_child (page)));
 }
 
 static void
@@ -191,7 +314,15 @@ action_close_other_tabs (GSimpleAction *action,
     NautilusWindow *window = user_data;
     AdwTabPage *page = get_current_page (window);
 
-    adw_tab_view_close_other_pages (window->tab_view, page);
+    if (page == NULL)
+    {
+        return;
+    }
+
+    AdwTabView *view = get_tab_view_for_slot (window,
+                                               NAUTILUS_WINDOW_SLOT (adw_tab_page_get_child (page)));
+
+    adw_tab_view_close_other_pages (view, page);
 }
 
 static void
@@ -226,7 +357,8 @@ action_tab_move_left (GSimpleAction *action,
     NautilusWindow *window = user_data;
     AdwTabPage *page = get_current_page (window);
 
-    adw_tab_view_reorder_backward (window->tab_view, page);
+    adw_tab_view_reorder_backward (get_tab_view_for_slot (window,
+                                                          NAUTILUS_WINDOW_SLOT (adw_tab_page_get_child (page))), page);
 }
 
 static void
@@ -237,7 +369,8 @@ action_tab_move_right (GSimpleAction *action,
     NautilusWindow *window = user_data;
     AdwTabPage *page = get_current_page (window);
 
-    adw_tab_view_reorder_forward (window->tab_view, page);
+    adw_tab_view_reorder_forward (get_tab_view_for_slot (window,
+                                                         NAUTILUS_WINDOW_SLOT (adw_tab_page_get_child (page))), page);
 }
 
 static void
@@ -248,11 +381,12 @@ action_go_to_tab (GSimpleAction *action,
     NautilusWindow *window = NAUTILUS_WINDOW (user_data);
     gint32 num = g_variant_get_int32 (value);
 
-    if (num < adw_tab_view_get_n_pages (window->tab_view))
+    AdwTabView *view = get_active_tab_view (window);
+    if (num < adw_tab_view_get_n_pages (view))
     {
-        AdwTabPage *page = adw_tab_view_get_nth_page (window->tab_view, num);
+        AdwTabPage *page = adw_tab_view_get_nth_page (view, num);
 
-        adw_tab_view_set_selected_page (window->tab_view, page);
+        adw_tab_view_set_selected_page (view, page);
     }
 }
 
@@ -310,7 +444,7 @@ create_tab_cb (NautilusWindow *window)
 {
     nautilus_window_new_tab (window);
 
-    return adw_tab_view_get_selected_page (window->tab_view);
+    return adw_tab_view_get_selected_page (get_active_tab_view (window));
 }
 
 static void
@@ -323,8 +457,18 @@ tab_view_setup_menu_cb (AdwTabView     *tab_view,
     GAction *restore_tab_action;
     GAction *close_other_tabs_action;
     GAction *move_tab_to_new_window_action;
+    GAction *move_tab_to_other_pane_action;
     int position, n_pages;
     gboolean menu_is_closed = (page == NULL);
+
+    if (tab_view == window->secondary_tab_view && window->split_enabled)
+    {
+        set_active_pane (window, TRUE);
+    }
+    else if (tab_view == window->tab_view)
+    {
+        set_active_pane (window, FALSE);
+    }
 
     window->menu_page = page;
 
@@ -344,6 +488,8 @@ tab_view_setup_menu_cb (AdwTabView     *tab_view,
                                                           "close-other-tabs");
     move_tab_to_new_window_action = g_action_map_lookup_action (G_ACTION_MAP (window),
                                                                 "tab-move-new-window");
+    move_tab_to_other_pane_action = g_action_map_lookup_action (G_ACTION_MAP (window),
+                                                                "tab-move-other-pane");
 
     g_simple_action_set_enabled (G_SIMPLE_ACTION (move_tab_left_action),
                                  menu_is_closed || position > 0);
@@ -355,6 +501,322 @@ tab_view_setup_menu_cb (AdwTabView     *tab_view,
                                  menu_is_closed || n_pages > 1);
     g_simple_action_set_enabled (G_SIMPLE_ACTION (move_tab_to_new_window_action),
                                  menu_is_closed || n_pages > 1);
+    gboolean can_move_to_other_pane = menu_is_closed;
+    if (!menu_is_closed)
+    {
+        NautilusWindowSlot *slot = NAUTILUS_WINDOW_SLOT (adw_tab_page_get_child (page));
+        AdwTabView *source = get_tab_view_for_slot (window, slot);
+        can_move_to_other_pane = !window->split_enabled ||
+                                 source != window->tab_view || n_pages > 1;
+    }
+    g_simple_action_set_enabled (G_SIMPLE_ACTION (move_tab_to_other_pane_action),
+                                 can_move_to_other_pane);
+}
+
+typedef struct
+{
+    NautilusWindow *window;
+    AdwTabView *tab_view;
+    AdwTabPage *page;
+    GtkBox *tab_strip;
+    GtkWidget *tab_bar;
+    GtkWidget *chip;
+    double drag_start_x;
+    double drag_start_y;
+} TabItemData;
+
+static void
+tab_item_data_free (gpointer user_data)
+{
+    TabItemData *data = user_data;
+
+    g_clear_object (&data->tab_view);
+    g_clear_object (&data->page);
+    g_free (data);
+}
+
+static TabItemData *
+tab_item_data_new (NautilusWindow *window,
+                   AdwTabView     *tab_view,
+                   GtkBox         *tab_strip,
+                   GtkWidget      *tab_bar,
+                   AdwTabPage     *page)
+{
+    TabItemData *data = g_new0 (TabItemData, 1);
+
+    data->window = window;
+    data->tab_view = g_object_ref (tab_view);
+    data->page = g_object_ref (page);
+    data->tab_strip = tab_strip;
+    data->tab_bar = tab_bar;
+
+    return data;
+}
+
+static void
+tab_item_select_cb (GtkToggleButton *button,
+                    TabItemData     *data)
+{
+    if (!gtk_toggle_button_get_active (button) ||
+        g_object_get_data (G_OBJECT (button), "syncing-selection") != NULL)
+    {
+        return;
+    }
+
+    if (data->window->split_enabled)
+    {
+        set_active_pane (data->window,
+                         data->tab_view == data->window->secondary_tab_view);
+    }
+
+    adw_tab_view_set_selected_page (data->tab_view, data->page);
+}
+
+static void
+tab_item_close_cb (GtkButton   *button,
+                   TabItemData *data)
+{
+    adw_tab_view_close_page (data->tab_view, data->page);
+}
+
+static void
+tab_item_menu_closed_cb (GtkPopover  *popover,
+                         TabItemData *data)
+{
+    if (data->window->menu_page == data->page)
+    {
+        tab_view_setup_menu_cb (data->tab_view, NULL, data->window);
+    }
+}
+
+static void
+tab_item_context_pressed_cb (GtkGestureClick *gesture,
+                             int             n_press,
+                             double          x,
+                             double          y,
+                             TabItemData    *data)
+{
+    GtkWidget *popover = g_object_get_data (G_OBJECT (data->chip), "tab-context-popover");
+    GdkRectangle rect = { (int) x, (int) y, 1, 1 };
+
+    if (n_press != 1)
+    {
+        return;
+    }
+
+    tab_view_setup_menu_cb (data->tab_view, data->page, data->window);
+    gtk_popover_set_pointing_to (GTK_POPOVER (popover), &rect);
+    gtk_popover_popup (GTK_POPOVER (popover));
+    gtk_gesture_set_state (GTK_GESTURE (gesture), GTK_EVENT_SEQUENCE_CLAIMED);
+}
+
+static void
+tab_item_drag_begin_cb (GtkGestureDrag *gesture,
+                        double          start_x,
+                        double          start_y,
+                        TabItemData    *data)
+{
+    data->drag_start_x = start_x;
+    data->drag_start_y = start_y;
+}
+
+static void
+tab_item_drag_end_cb (GtkGestureDrag *gesture,
+                      double          offset_x,
+                      double          offset_y,
+                      TabItemData    *data)
+{
+    GtkWidget *source = gtk_event_controller_get_widget (GTK_EVENT_CONTROLLER (gesture));
+    graphene_point_t source_point = GRAPHENE_POINT_INIT (data->drag_start_x + offset_x,
+                                                          data->drag_start_y + offset_y);
+    graphene_point_t bar_point;
+    graphene_point_t strip_point;
+    GtkAllocation allocation;
+    int position = 0;
+    int n_pages = adw_tab_view_get_n_pages (data->tab_view);
+    AdwTabPage *page;
+
+    /* Tabs may be reordered inside their own pane, but a drag cannot transfer
+     * a tab to another pane or detach it into a new window. */
+    if (!gtk_widget_compute_point (source, data->tab_bar, &source_point, &bar_point) ||
+        bar_point.x < 0 || bar_point.y < 0 ||
+        bar_point.x >= gtk_widget_get_width (data->tab_bar) ||
+        bar_point.y >= gtk_widget_get_height (data->tab_bar) ||
+        !gtk_widget_compute_point (source, GTK_WIDGET (data->tab_strip),
+                                   &source_point, &strip_point))
+    {
+        return;
+    }
+
+    for (GtkWidget *child = gtk_widget_get_first_child (GTK_WIDGET (data->tab_strip));
+         child != NULL;
+         child = gtk_widget_get_next_sibling (child))
+    {
+        gtk_widget_get_allocation (child, &allocation);
+        page = g_object_get_data (G_OBJECT (child), "tab-page");
+        if (page == NULL)
+        {
+            continue;
+        }
+
+        if (strip_point.x < allocation.x + allocation.width / 2.0)
+        {
+            break;
+        }
+
+        position++;
+    }
+
+    position = CLAMP (position, 0, n_pages - 1);
+    if (adw_tab_view_get_page_position (data->tab_view, data->page) != position)
+    {
+        adw_tab_view_reorder_page (data->tab_view, data->page, position);
+    }
+}
+
+static void
+tab_page_title_changed_cb (AdwTabPage  *page,
+                           GParamSpec  *pspec,
+                           GtkLabel    *label)
+{
+    gtk_label_set_text (label, adw_tab_page_get_title (page));
+}
+
+static void
+update_tab_strip_selection (NautilusWindow *window,
+                            AdwTabView     *tab_view,
+                            GtkBox         *tab_strip)
+{
+    AdwTabPage *selected_page = adw_tab_view_get_selected_page (tab_view);
+
+    for (GtkWidget *child = gtk_widget_get_first_child (GTK_WIDGET (tab_strip));
+         child != NULL;
+         child = gtk_widget_get_next_sibling (child))
+    {
+        GtkWidget *button = g_object_get_data (G_OBJECT (child), "tab-toggle");
+        AdwTabPage *page = g_object_get_data (G_OBJECT (child), "tab-page");
+
+        if (page == NULL || !GTK_IS_TOGGLE_BUTTON (button))
+        {
+            continue;
+        }
+
+        gboolean selected = page == selected_page;
+        g_object_set_data (G_OBJECT (button), "syncing-selection", GINT_TO_POINTER (1));
+        gtk_toggle_button_set_active (GTK_TOGGLE_BUTTON (button), selected);
+        g_object_set_data (G_OBJECT (button), "syncing-selection", NULL);
+        if (selected)
+        {
+            gtk_widget_add_css_class (child, "selected");
+        }
+        else
+        {
+            gtk_widget_remove_css_class (child, "selected");
+        }
+    }
+}
+
+static void
+update_tab_strip (NautilusWindow *window,
+                  AdwTabView     *tab_view,
+                  GtkBox         *tab_strip)
+{
+    GtkWidget *tab_bar = tab_view == window->secondary_tab_view
+                         ? window->secondary_tab_bar : window->main_tab_bar;
+    int n_pages = adw_tab_view_get_n_pages (tab_view);
+    int total_pages = n_pages +
+                      adw_tab_view_get_n_pages (tab_view == window->secondary_tab_view
+                                                ? window->tab_view
+                                                : window->secondary_tab_view);
+    gboolean inverted = is_layout_reversed ();
+
+    /* Reveal both pane tab bars once the window has multiple pages. This keeps
+     * a one-tab pane visible alongside a pane that has several tabs. */
+    gtk_widget_set_visible (window->main_tab_bar, total_pages > 1);
+    gtk_widget_set_visible (window->secondary_tab_bar,
+                            total_pages > 1 && window->split_enabled);
+
+    while (gtk_widget_get_first_child (GTK_WIDGET (tab_strip)) != NULL)
+    {
+        gtk_box_remove (tab_strip, gtk_widget_get_first_child (GTK_WIDGET (tab_strip)));
+    }
+
+    for (int i = 0; i < adw_tab_view_get_n_pages (tab_view); i++)
+    {
+        AdwTabPage *page = adw_tab_view_get_nth_page (tab_view, i);
+        GtkWidget *chip = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 0);
+        GtkWidget *toggle = gtk_toggle_button_new ();
+        GtkWidget *label = gtk_label_new (adw_tab_page_get_title (page));
+        GtkWidget *close_button = gtk_button_new_from_icon_name ("window-close-symbolic");
+        GtkWidget *popover = gtk_popover_menu_new_from_model (adw_tab_view_get_menu_model (tab_view));
+        GtkGesture *context_gesture = gtk_gesture_click_new ();
+        GtkGesture *drag_gesture = gtk_gesture_drag_new ();
+        TabItemData *data = tab_item_data_new (window, tab_view, tab_strip, tab_bar, page);
+        TabItemData *close_data = tab_item_data_new (window, tab_view, tab_strip, tab_bar, page);
+
+        data->chip = chip;
+        g_object_set_data (G_OBJECT (chip), "tab-page", page);
+        g_object_set_data (G_OBJECT (chip), "tab-toggle", toggle);
+        g_object_set_data_full (G_OBJECT (chip), "tab-item-data", data, tab_item_data_free);
+        g_object_set_data (G_OBJECT (chip), "tab-context-popover", popover);
+        gtk_widget_add_css_class (chip, "vinder-tab");
+        gtk_widget_add_css_class (toggle, "flat");
+        gtk_widget_add_css_class (toggle, "vinder-tab-toggle");
+        gtk_widget_add_css_class (close_button, "flat");
+        gtk_widget_set_size_request (chip, 128, -1);
+        gtk_widget_set_size_request (toggle, 100, -1);
+        gtk_widget_set_size_request (close_button, 24, -1);
+        gtk_widget_set_hexpand (chip, FALSE);
+        gtk_widget_set_hexpand (toggle, FALSE);
+        gtk_widget_set_hexpand (close_button, FALSE);
+        gtk_widget_set_hexpand (label, FALSE);
+        gtk_widget_set_tooltip_text (toggle, adw_tab_page_get_title (page));
+        gtk_widget_set_tooltip_text (close_button, _("Close Tab"));
+        gtk_label_set_ellipsize (GTK_LABEL (label), PANGO_ELLIPSIZE_END);
+        gtk_label_set_xalign (GTK_LABEL (label), 0.0);
+        gtk_label_set_max_width_chars (GTK_LABEL (label), 18);
+        gtk_widget_set_margin_start (label, 9);
+        gtk_widget_set_margin_end (label, 9);
+        gtk_button_set_child (GTK_BUTTON (toggle), label);
+        gtk_popover_set_has_arrow (GTK_POPOVER (popover), FALSE);
+        gtk_widget_set_parent (popover, chip);
+        gtk_box_append (GTK_BOX (chip), inverted ? close_button : toggle);
+        gtk_box_append (GTK_BOX (chip), inverted ? toggle : close_button);
+        gtk_box_append (tab_strip, chip);
+
+        g_signal_connect_object (page, "notify::title",
+                                 G_CALLBACK (tab_page_title_changed_cb),
+                                 G_OBJECT (label), 0);
+        g_signal_connect (toggle, "toggled", G_CALLBACK (tab_item_select_cb), data);
+        g_signal_connect (close_button, "clicked", G_CALLBACK (tab_item_close_cb), close_data);
+        g_object_set_data_full (G_OBJECT (close_button), "tab-item-data",
+                                close_data, tab_item_data_free);
+        g_signal_connect (popover, "closed", G_CALLBACK (tab_item_menu_closed_cb), data);
+
+        gtk_gesture_single_set_button (GTK_GESTURE_SINGLE (context_gesture), GDK_BUTTON_SECONDARY);
+        g_signal_connect (context_gesture, "pressed",
+                          G_CALLBACK (tab_item_context_pressed_cb), data);
+        gtk_widget_add_controller (chip, GTK_EVENT_CONTROLLER (context_gesture));
+
+        g_signal_connect (drag_gesture, "drag-begin",
+                          G_CALLBACK (tab_item_drag_begin_cb), data);
+        g_signal_connect (drag_gesture, "drag-end",
+                          G_CALLBACK (tab_item_drag_end_cb), data);
+        gtk_widget_add_controller (toggle, GTK_EVENT_CONTROLLER (drag_gesture));
+    }
+
+    update_tab_strip_selection (window, tab_view, tab_strip);
+}
+
+static void
+tab_view_page_reordered_cb (AdwTabView     *tab_view,
+                            AdwTabPage     *page,
+                            int             position,
+                            NautilusWindow *window)
+{
+    update_tab_strip (window, tab_view,
+                      tab_view == window->secondary_tab_view
+                      ? window->secondary_tab_strip : window->main_tab_strip);
 }
 
 static void
@@ -363,7 +825,18 @@ tab_view_notify_selected_page_cb (AdwTabView     *tab_view,
                                   NautilusWindow *window)
 {
     AdwTabPage *page = adw_tab_view_get_selected_page (tab_view);
-    NautilusWindowSlot *slot = NAUTILUS_WINDOW_SLOT (adw_tab_page_get_child (page));
+    NautilusWindowSlot *slot;
+
+    update_tab_strip_selection (window, tab_view,
+                                tab_view == window->secondary_tab_view
+                                ? window->secondary_tab_strip : window->main_tab_strip);
+
+    if (tab_view != get_active_tab_view (window) || page == NULL)
+    {
+        return;
+    }
+
+    slot = NAUTILUS_WINDOW_SLOT (adw_tab_page_get_child (page));
 
     g_return_if_fail (slot != NULL);
 
@@ -371,10 +844,51 @@ tab_view_notify_selected_page_cb (AdwTabView     *tab_view,
 }
 
 static void
+pane_focus_entered_cb (GtkEventControllerFocus *controller,
+                       NautilusWindow          *window)
+{
+    GtkWidget *widget = gtk_event_controller_get_widget (GTK_EVENT_CONTROLLER (controller));
+
+    if (widget == window->secondary_pane || widget == GTK_WIDGET (window->secondary_tab_bar))
+    {
+        set_active_pane (window, TRUE);
+    }
+    else
+    {
+        set_active_pane (window, FALSE);
+    }
+}
+
+static void
+pane_position_changed_cb (GtkPaned       *paned,
+                          GParamSpec     *pspec,
+                          NautilusWindow *window)
+{
+    int width = gtk_widget_get_width (GTK_WIDGET (paned));
+
+    if (window->split_enabled && width > 0)
+    {
+        double fraction = (double) gtk_paned_get_position (paned) / width;
+        g_settings_set_double (nautilus_window_state, "vinder-split-position",
+                               CLAMP (fraction, 0.2, 0.8));
+    }
+}
+
+static void
 disconnect_slot (NautilusWindow     *window,
                  NautilusWindowSlot *slot)
 {
     g_signal_handlers_disconnect_by_data (slot, window);
+}
+
+static void
+connect_slot_to_window (NautilusWindow     *window,
+                        NautilusWindowSlot *slot)
+{
+    g_signal_connect_swapped (slot, "notify::allow-stop",
+                              G_CALLBACK (update_cursor), window);
+    g_signal_connect (slot, "notify::location",
+                      G_CALLBACK (on_slot_location_changed), window);
 }
 
 static void
@@ -408,17 +922,13 @@ on_update_page_tooltip (NautilusWindowSlot *slot,
 }
 
 static NautilusWindowSlot *
-nautilus_window_create_and_init_slot (NautilusWindow *window)
+nautilus_window_create_and_init_slot_in_view (NautilusWindow *window,
+                                               AdwTabView     *view)
 {
     g_autoptr (NautilusWindowSlot) slot = nautilus_window_slot_new (NAUTILUS_MODE_BROWSE);
 
-    g_signal_connect_swapped (slot, "notify::allow-stop",
-                              G_CALLBACK (update_cursor), window);
-    g_signal_connect (slot, "notify::location",
-                      G_CALLBACK (on_slot_location_changed), window);
-
-    AdwTabPage *current = get_current_page (window);
-    AdwTabPage *page = adw_tab_view_add_page (window->tab_view, GTK_WIDGET (slot), current);
+    AdwTabPage *current = adw_tab_view_get_selected_page (view);
+    AdwTabPage *page = adw_tab_view_add_page (view, GTK_WIDGET (slot), current);
 
     g_object_bind_property (slot, "allow-stop",
                             page, "loading",
@@ -432,6 +942,281 @@ nautilus_window_create_and_init_slot (NautilusWindow *window)
     g_warn_if_fail (g_list_find (window->slots, slot) != NULL);
 
     return slot;
+}
+
+static NautilusWindowSlot *
+nautilus_window_create_and_init_slot (NautilusWindow *window)
+{
+    return nautilus_window_create_and_init_slot_in_view (window, get_active_tab_view (window));
+}
+
+static void
+action_toggle_split_view (GSimpleAction *action,
+                          GVariant      *value,
+                          gpointer       user_data)
+{
+    toggle_split_view_internal (action, g_variant_get_boolean (value), TRUE,
+                                NAUTILUS_WINDOW (user_data));
+}
+
+static void
+toggle_split_view_internal (GSimpleAction *action,
+                            gboolean       enabled,
+                            gboolean       create_seed_slot,
+                            NautilusWindow *window)
+{
+    if (enabled == window->split_enabled)
+    {
+        g_simple_action_set_state (action, g_variant_new_boolean (enabled));
+        return;
+    }
+
+    if (enabled)
+    {
+        GFile *location = window->active_slot != NULL
+                          ? nautilus_window_slot_get_location (window->active_slot) : NULL;
+        g_autoptr (GFile) fallback_location = NULL;
+        NautilusWindowSlot *slot;
+        int width = gtk_widget_get_width (GTK_WIDGET (window->paned));
+
+        window->split_enabled = TRUE;
+        gtk_widget_set_visible (window->secondary_pane, TRUE);
+        gtk_widget_set_visible (window->secondary_tab_bar_container, TRUE);
+        if (width > 0)
+        {
+            double fraction = CLAMP (g_settings_get_double (nautilus_window_state,
+                                                             "vinder-split-position"),
+                                     0.2, 0.8);
+            int position = (int) (width * fraction);
+            position = CLAMP (position, 220, MAX (220, width - 220));
+            gtk_paned_set_position (window->paned, position);
+        }
+
+        if (location == NULL || g_file_has_uri_scheme (location, SCHEME_SEARCH))
+        {
+            fallback_location = g_file_new_for_path (g_get_home_dir ());
+            location = fallback_location;
+        }
+
+        slot = NULL;
+        if (create_seed_slot)
+        {
+            slot = nautilus_window_create_and_init_slot_in_view (window,
+                                                                 window->secondary_tab_view);
+            nautilus_window_slot_open_location_full (slot, location, NULL);
+        }
+        set_active_pane (window, TRUE);
+        if (slot != NULL)
+        {
+            gtk_widget_grab_focus (GTK_WIDGET (slot));
+        }
+    }
+    else
+    {
+        AdwTabPage *selected_page = adw_tab_view_get_selected_page (window->secondary_tab_view);
+        NautilusWindowSlot *selected_slot = selected_page != NULL
+                                            ? NAUTILUS_WINDOW_SLOT (adw_tab_page_get_child (selected_page))
+                                            : NULL;
+        window->transferring_pages = TRUE;
+        while (adw_tab_view_get_n_pages (window->secondary_tab_view) > 0)
+        {
+            AdwTabPage *page = adw_tab_view_get_nth_page (window->secondary_tab_view, 0);
+            adw_tab_view_transfer_page (window->secondary_tab_view, page,
+                                        window->tab_view,
+                                        adw_tab_view_get_n_pages (window->tab_view));
+        }
+        window->transferring_pages = FALSE;
+        window->split_enabled = FALSE;
+        window->secondary_is_active = FALSE;
+        gtk_widget_set_visible (window->secondary_pane, FALSE);
+        gtk_widget_set_visible (window->secondary_tab_bar_container, FALSE);
+        update_shared_tab_widgets (window);
+        if (selected_slot != NULL)
+        {
+            AdwTabPage *page = adw_tab_view_get_page (window->tab_view, GTK_WIDGET (selected_slot));
+            if (page != NULL)
+            {
+                adw_tab_view_set_selected_page (window->tab_view, page);
+            }
+        }
+        set_active_pane (window, FALSE);
+        if (window->active_slot != NULL)
+        {
+            gtk_widget_grab_focus (GTK_WIDGET (window->active_slot));
+        }
+    }
+
+    update_tab_strip (window, window->tab_view, window->main_tab_strip);
+    update_tab_strip (window, window->secondary_tab_view, window->secondary_tab_strip);
+
+    g_simple_action_set_state (action, g_variant_new_boolean (enabled));
+}
+
+static void
+action_focus_other_pane (GSimpleAction *action,
+                         GVariant      *state,
+                         gpointer       user_data)
+{
+    NautilusWindow *window = NAUTILUS_WINDOW (user_data);
+
+    if (!window->split_enabled)
+    {
+        return;
+    }
+
+    set_active_pane (window, !window->secondary_is_active);
+    if (window->active_slot != NULL)
+    {
+        gtk_widget_grab_focus (GTK_WIDGET (window->active_slot));
+    }
+}
+
+void
+nautilus_window_open_location_in_other_pane (NautilusWindow *window,
+                                             GFile          *location)
+{
+    gboolean target_secondary;
+    AdwTabView *target_view;
+    AdwTabPage *page;
+    NautilusWindowSlot *slot;
+
+    g_return_if_fail (NAUTILUS_IS_WINDOW (window));
+    g_return_if_fail (G_IS_FILE (location));
+
+    if (!window->split_enabled)
+    {
+        toggle_split_view_internal (G_SIMPLE_ACTION (g_action_map_lookup_action (G_ACTION_MAP (window),
+                                                                                 "toggle-split-view")),
+                                    TRUE, FALSE, window);
+        target_secondary = TRUE;
+    }
+    else
+    {
+        target_secondary = !window->secondary_is_active;
+    }
+
+    set_active_pane (window, target_secondary);
+    target_view = get_active_tab_view (window);
+    page = adw_tab_view_get_selected_page (target_view);
+    if (page != NULL)
+    {
+        slot = NAUTILUS_WINDOW_SLOT (adw_tab_page_get_child (page));
+    }
+    else
+    {
+        slot = nautilus_window_create_and_init_slot_in_view (window, target_view);
+    }
+    nautilus_window_slot_open_location_full (slot, location, NULL);
+    gtk_widget_grab_focus (GTK_WIDGET (slot));
+}
+
+void
+nautilus_window_sync_folder_view_mode (NautilusWindow     *window,
+                                       NautilusWindowSlot *source_slot,
+                                       GFile              *location,
+                                       const char         *mode)
+{
+    gboolean grid;
+    guint view_id;
+
+    g_return_if_fail (NAUTILUS_IS_WINDOW (window));
+    g_return_if_fail (NAUTILUS_IS_WINDOW_SLOT (source_slot));
+    g_return_if_fail (G_IS_FILE (location));
+
+    grid = g_str_equal (mode, "grid");
+    view_id = grid ? NAUTILUS_VIEW_GRID_ID : NAUTILUS_VIEW_LIST_ID;
+
+    for (GList *l = window->slots; l != NULL; l = l->next)
+    {
+        NautilusWindowSlot *slot = l->data;
+        GFile *slot_location;
+        NautilusFilesView *current_view;
+        gboolean reload_list;
+
+        if (slot == source_slot)
+        {
+            continue;
+        }
+
+        slot_location = nautilus_window_slot_get_location (slot);
+        if (slot_location == NULL || !g_file_equal (slot_location, location))
+        {
+            continue;
+        }
+
+        current_view = nautilus_window_slot_get_current_view (slot);
+        reload_list = !grid && current_view != NULL &&
+                      nautilus_files_view_get_view_id (current_view) == NAUTILUS_VIEW_LIST_ID;
+        gtk_widget_activate_action (GTK_WIDGET (slot), "slot.files-view-mode", "u", view_id);
+        if (reload_list)
+        {
+            gtk_widget_activate_action (GTK_WIDGET (slot), "slot.reload", NULL);
+        }
+    }
+}
+
+static void
+action_activate_split_view (GSimpleAction *action,
+                            GVariant      *state,
+                            gpointer       user_data)
+{
+    NautilusWindow *window = NAUTILUS_WINDOW (user_data);
+
+    action_toggle_split_view (action, g_variant_new_boolean (!window->split_enabled), window);
+}
+
+static void
+action_move_tab_to_other_pane (GSimpleAction *action,
+                               GVariant      *state,
+                               gpointer       user_data)
+{
+    NautilusWindow *window = NAUTILUS_WINDOW (user_data);
+    AdwTabPage *page = get_current_page (window);
+    NautilusWindowSlot *slot;
+    AdwTabView *source;
+    AdwTabView *target;
+
+    if (page == NULL)
+    {
+        return;
+    }
+
+    slot = NAUTILUS_WINDOW_SLOT (adw_tab_page_get_child (page));
+    source = get_tab_view_for_slot (window, slot);
+    if (!window->split_enabled)
+    {
+        GFile *current_location = nautilus_window_slot_get_location (slot);
+        g_autoptr (GFile) location_copy = current_location != NULL
+                                         ? g_object_ref (current_location) : NULL;
+        if (location_copy == NULL)
+        {
+            return;
+        }
+
+        toggle_split_view_internal (G_SIMPLE_ACTION (g_action_map_lookup_action (G_ACTION_MAP (window),
+                                                                                 "toggle-split-view")),
+                                    TRUE, FALSE, window);
+
+        NautilusWindowSlot *replacement = nautilus_window_create_and_init_slot_in_view (window,
+                                                                                         window->tab_view);
+        nautilus_window_slot_open_location_full (replacement, location_copy, NULL);
+    }
+
+    target = source == window->tab_view ? window->secondary_tab_view : window->tab_view;
+    window->transferring_pages = TRUE;
+    adw_tab_view_transfer_page (source, page, target, adw_tab_view_get_n_pages (target));
+    window->transferring_pages = FALSE;
+    set_active_pane (window, target == window->secondary_tab_view);
+    adw_tab_view_set_selected_page (target, page);
+    gtk_widget_grab_focus (GTK_WIDGET (slot));
+
+    if (window->split_enabled && source == window->secondary_tab_view &&
+        adw_tab_view_get_n_pages (source) == 0)
+    {
+        action_toggle_split_view (G_SIMPLE_ACTION (g_action_map_lookup_action (G_ACTION_MAP (window),
+                                                                               "toggle-split-view")),
+                                  g_variant_new_boolean (FALSE), window);
+    }
 }
 
 static NautilusWindowSlot *
@@ -504,6 +1289,13 @@ remove_slot_from_window (NautilusWindowSlot *slot,
 
     g_debug ("Removing slot %p", slot);
 
+    /* This also covers page detaches for tab transfers: the slot may already
+     * have been unparented, so deactivate it before losing the window link. */
+    if (window->active_slot == slot)
+    {
+        set_active_slot (window, NULL);
+    }
+
     disconnect_slot (window, slot);
     window->slots = g_list_remove (window->slots, slot);
     g_signal_emit (window, signals[LOCATIONS_CHANGED], 0);
@@ -517,6 +1309,10 @@ nautilus_window_new_tab (NautilusWindow *window)
     GFile *location;
 
     page = get_current_page (window);
+    if (page == NULL)
+    {
+        return;
+    }
     current_slot = NAUTILUS_WINDOW_SLOT (adw_tab_page_get_child (page));
     location = nautilus_window_slot_get_location (current_slot);
 
@@ -658,7 +1454,8 @@ nautilus_window_set_up_sidebar (NautilusWindow *window)
     nautilus_sidebar_set_open_flags (window->places_sidebar,
                                      (NAUTILUS_OPEN_FLAG_NORMAL
                                       | NAUTILUS_OPEN_FLAG_NEW_TAB
-                                      | NAUTILUS_OPEN_FLAG_NEW_WINDOW));
+                                      | NAUTILUS_OPEN_FLAG_NEW_WINDOW
+                                      | NAUTILUS_OPEN_FLAG_OTHER_PANE));
 
     g_signal_connect (window->places_sidebar, "drag-action-requested",
                       G_CALLBACK (places_sidebar_drag_action_requested_cb), window);
@@ -674,8 +1471,8 @@ static void
 window_slot_close (NautilusWindow     *window,
                    NautilusWindowSlot *slot)
 {
-    NautilusNavigationState *data;
     AdwTabPage *page;
+    AdwTabView *view;
 
     g_debug ("Requesting to remove slot %p from window %p", slot, window);
     if (window == NULL || slot == NULL)
@@ -683,42 +1480,27 @@ window_slot_close (NautilusWindow     *window,
         return;
     }
 
-    data = nautilus_window_slot_get_navigation_state (slot);
-    if (data != NULL)
+    view = get_tab_view_for_slot (window, slot);
+    if (view == NULL)
     {
-        g_queue_push_head (window->tab_data_queue, data);
+        return;
     }
 
-    remove_slot_from_window (slot, window);
-
-    page = adw_tab_view_get_page (window->tab_view, GTK_WIDGET (slot));
-    /* this will destroy the slot */
-    adw_tab_view_close_page (window->tab_view, page);
-
-    /* If that was the last slot in the window, close the window. */
-    if (window->slots == NULL)
+    page = adw_tab_view_get_page (view, GTK_WIDGET (slot));
+    if (page != NULL)
     {
-        g_debug ("Last slot removed, closing the window");
-        nautilus_window_close (window);
+        adw_tab_view_close_page (view, page);
     }
-    else
-    {
-        GAction *restore_action = g_action_map_lookup_action (G_ACTION_MAP (window), "restore-tab");
-
-        g_simple_action_set_enabled (G_SIMPLE_ACTION (restore_action),
-                                     g_queue_get_length (window->tab_data_queue) > 0);
-    }
-
-#ifdef HAVE_MALLOC_TRIM
-    schedule_trim ();
-#endif
 }
 
 static void
 nautilus_window_sync_location_widgets (NautilusWindow *window)
 {
-    /* This function can only be called when there is a slot. */
-    g_return_if_fail (window->active_slot != NULL);
+    if (window->active_slot == NULL)
+    {
+        gtk_widget_set_visible (window->network_address_bar, FALSE);
+        return;
+    }
 
     GFile *location = nautilus_window_slot_get_location (window->active_slot);
 
@@ -953,12 +1735,116 @@ tab_view_close_page_cb (AdwTabView     *view,
                         NautilusWindow *window)
 {
     NautilusWindowSlot *slot;
+    NautilusNavigationState *data;
+    GAction *restore_action;
 
     slot = NAUTILUS_WINDOW_SLOT (adw_tab_page_get_child (page));
 
-    window_slot_close (window, slot);
+    /* A seeded tab used by "Move Tab to Other Pane" is already untracked. */
+    if (!g_list_find (window->slots, slot))
+    {
+        return GDK_EVENT_PROPAGATE;
+    }
 
-    return GDK_EVENT_PROPAGATE;
+    if (adw_tab_page_get_pinned (page))
+    {
+        adw_tab_view_close_page_finish (view, page, FALSE);
+        return GDK_EVENT_STOP;
+    }
+
+    data = nautilus_window_slot_get_navigation_state (slot);
+    if (data != NULL)
+    {
+        g_queue_push_head (window->tab_data_queue, data);
+    }
+
+    nautilus_window_slot_prepare_for_close (slot);
+    remove_slot_from_window (slot, window);
+    window->closing_page = TRUE;
+    adw_tab_view_close_page_finish (view, page, TRUE);
+    window->closing_page = FALSE;
+
+    if (window->slots == NULL)
+    {
+        g_debug ("Last slot removed, closing the window");
+        nautilus_window_close (window);
+    }
+    else
+    {
+        restore_action = g_action_map_lookup_action (G_ACTION_MAP (window), "restore-tab");
+        g_simple_action_set_enabled (G_SIMPLE_ACTION (restore_action),
+                                     g_queue_get_length (window->tab_data_queue) > 0);
+    }
+
+#ifdef HAVE_MALLOC_TRIM
+    schedule_trim ();
+#endif
+
+    return GDK_EVENT_STOP;
+}
+
+static void
+collapse_empty_pane_if_needed (NautilusWindow *window)
+{
+    GAction *action;
+
+    if (!window->split_enabled || window->slots == NULL ||
+        (adw_tab_view_get_n_pages (window->tab_view) > 0 &&
+         adw_tab_view_get_n_pages (window->secondary_tab_view) > 0))
+    {
+        return;
+    }
+
+    action = g_action_map_lookup_action (G_ACTION_MAP (window), "toggle-split-view");
+    action_toggle_split_view (G_SIMPLE_ACTION (action), g_variant_new_boolean (FALSE), window);
+}
+
+static gboolean
+collapse_empty_pane_when_transfer_done (gpointer user_data)
+{
+    NautilusWindow *window = NAUTILUS_WINDOW (user_data);
+
+    if (window->closing || window->tab_view == NULL || window->secondary_tab_view == NULL)
+    {
+        window->collapse_source_id = 0;
+        return G_SOURCE_REMOVE;
+    }
+
+    if (adw_tab_view_get_is_transferring_page (window->tab_view) ||
+        adw_tab_view_get_is_transferring_page (window->secondary_tab_view))
+    {
+        return G_SOURCE_CONTINUE;
+    }
+
+    window->collapse_source_id = 0;
+    collapse_empty_pane_if_needed (window);
+
+    return G_SOURCE_REMOVE;
+}
+
+static gboolean
+collapse_empty_pane_idle (gpointer user_data)
+{
+    NautilusWindow *window = NAUTILUS_WINDOW (user_data);
+
+    window->collapse_source_id = 0;
+    if (window->closing || window->tab_view == NULL || window->secondary_tab_view == NULL)
+    {
+        return G_SOURCE_REMOVE;
+    }
+
+    if (adw_tab_view_get_is_transferring_page (window->tab_view) ||
+        adw_tab_view_get_is_transferring_page (window->secondary_tab_view))
+    {
+        window->collapse_source_id =
+            g_timeout_add_full (G_PRIORITY_DEFAULT, 50,
+                               collapse_empty_pane_when_transfer_done,
+                               g_object_ref (window), g_object_unref);
+        return G_SOURCE_REMOVE;
+    }
+
+    collapse_empty_pane_if_needed (window);
+    return G_SOURCE_REMOVE;
 }
 
 static void
@@ -969,10 +1855,46 @@ tab_view_page_detached_cb (AdwTabView     *tab_view,
 {
     NautilusWindowSlot *slot = NAUTILUS_WINDOW_SLOT (adw_tab_page_get_child (page));
 
-    if (g_list_find (window->slots, slot))
+    if (window->menu_page == page)
+    {
+        window->menu_page = NULL;
+    }
+
+    if (!window->transferring_pages && g_list_find (window->slots, slot))
     {
         remove_slot_from_window (slot, window);
     }
+
+    if (!window->closing && !window->transferring_pages && window->split_enabled &&
+        adw_tab_view_get_n_pages (tab_view) == 0)
+    {
+        /* Tab DnD emits page-detached before page-attached. Defer pane collapse
+         * until the transfer has landed, or we can hide the destination pane. */
+        if (window->closing_page)
+        {
+            if (window->collapse_source_id != 0)
+            {
+                g_clear_handle_id (&window->collapse_source_id, g_source_remove);
+            }
+            window->collapse_source_id =
+                g_idle_add_full (G_PRIORITY_HIGH_IDLE, collapse_empty_pane_idle,
+                                 g_object_ref (window), g_object_unref);
+        }
+        else
+        {
+            if (window->collapse_source_id == 0)
+            {
+                window->collapse_source_id =
+                    g_timeout_add_full (G_PRIORITY_DEFAULT, 50,
+                                       collapse_empty_pane_when_transfer_done,
+                                       g_object_ref (window), g_object_unref);
+            }
+        }
+    }
+
+    update_tab_strip (window, tab_view,
+                      tab_view == window->secondary_tab_view
+                      ? window->secondary_tab_strip : window->main_tab_strip);
 }
 
 static void
@@ -983,7 +1905,20 @@ tab_view_page_attached_cb (AdwTabView     *tab_view,
 {
     NautilusWindowSlot *slot = NAUTILUS_WINDOW_SLOT (adw_tab_page_get_child (page));
 
-    window->slots = g_list_prepend (window->slots, slot);
+    if (!window->transferring_pages && !g_list_find (window->slots, slot))
+    {
+        connect_slot_to_window (window, slot);
+        window->slots = g_list_prepend (window->slots, slot);
+    }
+
+    if (!window->transferring_pages && window->split_enabled)
+    {
+        set_active_pane (window, tab_view == window->secondary_tab_view);
+    }
+
+    update_tab_strip (window, tab_view,
+                      tab_view == window->secondary_tab_view
+                      ? window->secondary_tab_strip : window->main_tab_strip);
 
     g_signal_emit (window, signals[LOCATIONS_CHANGED], 0);
 }
@@ -1012,52 +1947,11 @@ action_tab_move_new_window (GSimpleAction *action,
 {
     NautilusWindow *window = user_data;
     AdwTabPage *page = get_current_page (window);
-    AdwTabView *new_view = tab_view_create_window_cb (window->tab_view, window);
+    AdwTabView *source = get_tab_view_for_slot (window,
+                                                 NAUTILUS_WINDOW_SLOT (adw_tab_page_get_child (page)));
+    AdwTabView *new_view = tab_view_create_window_cb (source, window);
 
-    adw_tab_view_transfer_page (window->tab_view, page, new_view, 0);
-}
-
-static GdkDragAction
-extra_drag_value_cb (AdwTabBar    *self,
-                     AdwTabPage   *page,
-                     const GValue *value,
-                     gpointer      user_data)
-{
-    NautilusWindowSlot *slot = NAUTILUS_WINDOW_SLOT (adw_tab_page_get_child (page));
-    g_autoptr (NautilusFile) file = nautilus_file_get (nautilus_window_slot_get_location (slot));
-    GdkDragAction action = 0;
-
-    if (value != NULL)
-    {
-        if (G_VALUE_HOLDS (value, GDK_TYPE_FILE_LIST))
-        {
-            GSList *file_list = g_value_get_boxed (value);
-            if (file_list != NULL)
-            {
-                action = nautilus_dnd_get_preferred_action (file, G_FILE (file_list->data));
-            }
-        }
-        else if (G_VALUE_HOLDS (value, G_TYPE_STRING) || G_VALUE_HOLDS (value, GDK_TYPE_TEXTURE))
-        {
-            action = GDK_ACTION_COPY;
-        }
-    }
-
-    return action;
-}
-
-static gboolean
-extra_drag_drop_cb (AdwTabBar    *self,
-                    AdwTabPage   *page,
-                    const GValue *value,
-                    gpointer      user_data)
-{
-    NautilusWindowSlot *slot = NAUTILUS_WINDOW_SLOT (adw_tab_page_get_child (page));
-    NautilusFilesView *view = nautilus_window_slot_get_current_view (slot);
-    GFile *target_location = nautilus_window_slot_get_location (slot);
-    GdkDragAction action = adw_tab_bar_get_extra_drag_preferred_action (self);
-
-    return nautilus_dnd_perform_drop (view, value, action, target_location);
+    adw_tab_view_transfer_page (source, page, new_view, 0);
 }
 
 static const GActionEntry win_entries[] =
@@ -1077,6 +1971,10 @@ static const GActionEntry win_entries[] =
     { .name = "go-to-tab", .parameter_type = "i", .state = "0", .change_state = action_go_to_tab },
     { .name = "restore-tab", .activate = action_restore_tab },
     { .name = "toggle-sidebar", .activate = action_toggle_sidebar },
+    { .name = "toggle-split-view", .activate = action_activate_split_view,
+      .state = "false", .change_state = action_toggle_split_view },
+    { .name = "focus-other-pane", .activate = action_focus_other_pane },
+    { .name = "tab-move-other-pane", .activate = action_move_tab_to_other_pane },
 };
 
 static void
@@ -1161,6 +2059,8 @@ nautilus_window_initialize_actions (NautilusWindow *window)
     nautilus_application_set_accelerator (app, "win.current-location-menu", "F10");
     nautilus_application_set_accelerator (app, "win.restore-tab", "<shift><control>t");
     nautilus_application_set_accelerator (app, "win.toggle-sidebar", "F9");
+    nautilus_application_set_accelerator (app, "win.toggle-split-view", "F3");
+    nautilus_application_set_accelerator (app, "win.focus-other-pane", "F6");
 
     /* Alt+N for the first 9 tabs */
     for (i = 0; i < 9; ++i)
@@ -1206,12 +2106,8 @@ is_layout_reversed (void)
 static void
 notify_decoration_layout_cb (NautilusWindow *self)
 {
-    gboolean inverted = is_layout_reversed ();
-
-    if (ADW_IS_TAB_BAR (self->tab_bar))
-    {
-        adw_tab_bar_set_inverted (self->tab_bar, inverted);
-    }
+    update_tab_strip (self, self->tab_view, self->main_tab_strip);
+    update_tab_strip (self, self->secondary_tab_view, self->secondary_tab_strip);
 }
 
 static void
@@ -1227,23 +2123,6 @@ nautilus_window_constructed (GObject *self)
 
     application = NAUTILUS_APPLICATION (g_application_get_default ());
     gtk_window_set_application (GTK_WINDOW (window), GTK_APPLICATION (application));
-
-    /* Only allow tab DnD in Wayland.  We are using a hack in list-base to
-     * get the preferred action which we can not replicate here because we
-     * don't have access to the GtkDropTarget to check the actions on the GdkDrag.
-     * See: https://gitlab.gnome.org/GNOME/gtk/-/merge_requests/4982
-     */
-#ifdef GDK_WINDOWING_WAYLAND
-    if (GDK_IS_WAYLAND_DISPLAY (gtk_widget_get_display (GTK_WIDGET (window))))
-    {
-        adw_tab_bar_setup_extra_drop_target (window->tab_bar,
-                                             GDK_ACTION_COPY | GDK_ACTION_MOVE,
-                                             (GType [3]) {GDK_TYPE_TEXTURE, GDK_TYPE_FILE_LIST, G_TYPE_STRING}, 3);
-        adw_tab_bar_set_extra_drag_preload (window->tab_bar, TRUE);
-        g_signal_connect (window->tab_bar, "extra-drag-value", G_CALLBACK (extra_drag_value_cb), NULL);
-        g_signal_connect (window->tab_bar, "extra-drag-drop", G_CALLBACK (extra_drag_drop_cb), NULL);
-    }
-#endif
 
     settings = gtk_settings_get_default ();
     g_signal_connect_object (settings, "notify::gtk-decoration-layout",
@@ -1272,9 +2151,15 @@ nautilus_window_dispose (GObject *object)
     window = NAUTILUS_WINDOW (object);
 
     g_debug ("Destroying window");
+    window->closing = TRUE;
+    g_clear_handle_id (&window->collapse_source_id, g_source_remove);
 
     /* close all slots safely */
     slots_copy = g_list_copy (window->slots);
+    for (GList *l = slots_copy; l != NULL; l = l->next)
+    {
+        nautilus_window_slot_prepare_for_close (l->data);
+    }
     g_list_foreach (slots_copy, (GFunc) remove_slot_from_window, window);
     g_list_free (slots_copy);
 
@@ -1320,12 +2205,26 @@ nautilus_window_save_geometry (NautilusWindow *window)
     g_settings_set_value (nautilus_window_state,
                           NAUTILUS_WINDOW_STATE_INITIAL_SIZE,
                           initial_size);
+
+    if (window->split_enabled)
+    {
+        width = gtk_widget_get_width (GTK_WIDGET (window->paned));
+        if (width > 0)
+        {
+            double fraction = (double) gtk_paned_get_position (window->paned) / width;
+            g_settings_set_double (nautilus_window_state, "vinder-split-position",
+                                   CLAMP (fraction, 0.2, 0.8));
+        }
+    }
 }
 
 void
 nautilus_window_close (NautilusWindow *window)
 {
     g_return_if_fail (NAUTILUS_IS_WINDOW (window));
+
+    window->closing = TRUE;
+    g_clear_handle_id (&window->collapse_source_id, g_source_remove);
 
     nautilus_window_save_geometry (window);
     set_active_slot (window, NULL);
@@ -1353,9 +2252,30 @@ set_active_slot (NautilusWindow     *window,
                  NautilusWindowSlot *new_slot)
 {
     NautilusWindowSlot *old_slot = window->active_slot;
+    AdwTabView *view = new_slot != NULL ? get_tab_view_for_slot (window, new_slot) : NULL;
 
     g_return_if_fail (new_slot == NULL ||
                       gtk_widget_is_ancestor (GTK_WIDGET (new_slot), GTK_WIDGET (window)));
+
+    if (view != NULL && window->split_enabled)
+    {
+        gboolean secondary = view == window->secondary_tab_view;
+        if (window->secondary_is_active != secondary)
+        {
+            window->secondary_is_active = secondary;
+            if (secondary)
+            {
+                gtk_widget_remove_css_class (window->main_pane, "active-pane");
+                gtk_widget_add_css_class (window->secondary_pane, "active-pane");
+            }
+            else
+            {
+                gtk_widget_remove_css_class (window->secondary_pane, "active-pane");
+                gtk_widget_add_css_class (window->main_pane, "active-pane");
+            }
+            update_shared_tab_widgets (window);
+        }
+    }
 
     if (old_slot == new_slot)
     {
@@ -1376,16 +2296,16 @@ set_active_slot (NautilusWindow     *window,
     /* make new slot active, if it exists */
     if (new_slot)
     {
-        AdwTabPage *page = adw_tab_view_get_page (window->tab_view,
-                                                  GTK_WIDGET (new_slot));
-        adw_tab_view_set_selected_page (window->tab_view, page);
+        AdwTabPage *page = adw_tab_view_get_page (view, GTK_WIDGET (new_slot));
+        adw_tab_view_set_selected_page (view, page);
 
         /* inform slot & view */
         nautilus_window_slot_set_active (new_slot, TRUE);
 
-        on_location_changed (window);
         update_cursor (window);
     }
+
+    on_location_changed (window);
 
     g_object_notify_by_pspec (G_OBJECT (window), properties[PROP_ACTIVE_SLOT]);
 }
@@ -1486,7 +2406,24 @@ nautilus_window_back_or_forward_in_new_tab (NautilusWindow *window,
 {
     NautilusNavigationState *state;
 
+    g_return_if_fail (NAUTILUS_IS_WINDOW (window));
+    if (window->active_slot == NULL)
+    {
+        return;
+    }
+
     state = nautilus_window_slot_get_navigation_state (window->active_slot);
+    if (state == NULL)
+    {
+        return;
+    }
+
+    if ((distance == NAUTILUS_NAVIGATION_DIRECTION_FORWARD && state->forward_list == NULL) ||
+        (distance == NAUTILUS_NAVIGATION_DIRECTION_BACK && state->back_list == NULL))
+    {
+        free_navigation_state (state);
+        return;
+    }
 
     /* Manually fix up the back / forward lists and location.
      * This way we don't have to unnecessary load the current location
@@ -1560,6 +2497,41 @@ nautilus_window_init (NautilusWindow *window)
     g_type_ensure (NAUTILUS_TYPE_PROGRESS_INDICATOR);
     g_type_ensure (NAUTILUS_TYPE_SHORTCUT_MANAGER);
     gtk_widget_init_template (GTK_WIDGET (window));
+
+    adw_window_title_set_title (window->window_title, APPLICATION_NAME);
+
+    window->split_enabled = FALSE;
+    window->secondary_is_active = FALSE;
+    window->closing_page = FALSE;
+    window->closing = FALSE;
+    window->collapse_source_id = 0;
+    gtk_widget_set_visible (window->secondary_pane, FALSE);
+    gtk_widget_set_visible (GTK_WIDGET (window->secondary_tab_bar), FALSE);
+    gtk_widget_set_visible (window->secondary_tab_bar_container, FALSE);
+    gtk_widget_add_css_class (window->main_pane, "active-pane");
+
+    g_object_bind_property (window->paned, "position",
+                            window->tab_bars_paned, "position",
+                            G_BINDING_BIDIRECTIONAL | G_BINDING_SYNC_CREATE);
+
+    g_signal_connect (window->paned, "notify::position",
+                      G_CALLBACK (pane_position_changed_cb), window);
+
+    controller = gtk_event_controller_focus_new ();
+    g_signal_connect (controller, "enter", G_CALLBACK (pane_focus_entered_cb), window);
+    gtk_widget_add_controller (window->main_pane, controller);
+
+    controller = gtk_event_controller_focus_new ();
+    g_signal_connect (controller, "enter", G_CALLBACK (pane_focus_entered_cb), window);
+    gtk_widget_add_controller (window->secondary_pane, controller);
+
+    controller = gtk_event_controller_focus_new ();
+    g_signal_connect (controller, "enter", G_CALLBACK (pane_focus_entered_cb), window);
+    gtk_widget_add_controller (GTK_WIDGET (window->main_tab_bar), controller);
+
+    controller = gtk_event_controller_focus_new ();
+    g_signal_connect (controller, "enter", G_CALLBACK (pane_focus_entered_cb), window);
+    gtk_widget_add_controller (GTK_WIDGET (window->secondary_tab_bar), controller);
 
     g_signal_connect_object (nautilus_preferences, "changed::vinder-blur",
                              G_CALLBACK (update_files_header_blur), window, G_CONNECT_SWAPPED);
@@ -1698,13 +2670,24 @@ nautilus_window_class_init (NautilusWindowClass *class)
                                                  "/org/gnome/nautilus/ui/nautilus-window.ui");
     gtk_widget_class_bind_template_child (wclass, NautilusWindow, undo_redo_section);
     gtk_widget_class_bind_template_child (wclass, NautilusWindow, toolbar);
+    gtk_widget_class_bind_template_child (wclass, NautilusWindow, window_title);
     gtk_widget_class_bind_template_child (wclass, NautilusWindow, split_view);
     gtk_widget_class_bind_template_child (wclass, NautilusWindow, files_toolbar_view);
     gtk_widget_class_bind_template_child (wclass, NautilusWindow, places_sidebar);
     gtk_widget_class_bind_template_child (wclass, NautilusWindow, toast_overlay);
     gtk_widget_class_bind_template_child (wclass, NautilusWindow, tab_overview);
     gtk_widget_class_bind_template_child (wclass, NautilusWindow, tab_view);
-    gtk_widget_class_bind_template_child (wclass, NautilusWindow, tab_bar);
+    gtk_widget_class_bind_template_child (wclass, NautilusWindow, secondary_tab_view);
+    gtk_widget_class_bind_template_child (wclass, NautilusWindow, main_tab_bar);
+    gtk_widget_class_bind_template_child (wclass, NautilusWindow, secondary_tab_bar);
+    gtk_widget_class_bind_template_child (wclass, NautilusWindow, secondary_tab_bar_container);
+    gtk_widget_class_bind_template_child (wclass, NautilusWindow, main_tab_strip);
+    gtk_widget_class_bind_template_child (wclass, NautilusWindow, secondary_tab_strip);
+    gtk_widget_class_bind_template_child (wclass, NautilusWindow, tab_bars_paned);
+    gtk_widget_class_bind_template_child (wclass, NautilusWindow, tab_button);
+    gtk_widget_class_bind_template_child (wclass, NautilusWindow, secondary_pane);
+    gtk_widget_class_bind_template_child (wclass, NautilusWindow, main_pane);
+    gtk_widget_class_bind_template_child (wclass, NautilusWindow, paned);
     gtk_widget_class_bind_template_child (wclass, NautilusWindow, network_address_bar);
 
     gtk_widget_class_bind_template_callback (wclass, create_tab_cb);
@@ -1715,6 +2698,7 @@ nautilus_window_class_init (NautilusWindowClass *class)
     gtk_widget_class_bind_template_callback (wclass, tab_view_create_window_cb);
     gtk_widget_class_bind_template_callback (wclass, tab_view_page_attached_cb);
     gtk_widget_class_bind_template_callback (wclass, tab_view_page_detached_cb);
+    gtk_widget_class_bind_template_callback (wclass, tab_view_page_reordered_cb);
 
     signals[LOCATIONS_CHANGED] =
         g_signal_new ("locations-changed",
@@ -1767,7 +2751,7 @@ nautilus_window_show_about_dialog (NautilusWindow *window)
 
     dialog = adw_about_dialog_new_from_appdata ("/org/gnome/nautilus/appdata", NULL);
 
-    adw_about_dialog_set_application_name (ADW_ABOUT_DIALOG (dialog), "Vinder");
+    adw_about_dialog_set_application_name (ADW_ABOUT_DIALOG (dialog), APPLICATION_NAME);
     adw_about_dialog_set_application_icon (ADW_ABOUT_DIALOG (dialog), APPLICATION_ID);
     adw_about_dialog_set_developer_name (ADW_ABOUT_DIALOG (dialog), "Paul Beyens");
     adw_about_dialog_set_comments (ADW_ABOUT_DIALOG (dialog),

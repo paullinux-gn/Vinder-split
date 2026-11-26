@@ -119,6 +119,7 @@
     </key>
     <key name="vinder-appearance" type="s">
       <choices>
+        <choice value="system"/>
         <choice value="light"/>
         <choice value="dark"/>
         <choice value="dark-and-light"/>
@@ -126,6 +127,11 @@
       <default>'light'</default>
       <summary>Vinder appearance</summary>
       <description>The color theme used by Vinder.</description>
+    </key>
+    <key name="vinder-thumbnail-folders" type="as">
+      <default>[]</default>
+      <summary>Folders whose thumbnails are prepared in the background</summary>
+      <description>Absolute paths of the folders Vinder creates thumbnails for while it is idle. When the list is empty, the Pictures folder is used. Your home folder and the root folder are ignored. Nothing is prepared while thumbnails are turned off or the system is in power saver mode.</description>
     </key>
     <key name="legacy-settings-migrated" type="b">
       <default>false</default>
@@ -293,6 +299,12 @@
       <default>false</default>
       <summary>Whether the navigation window should be maximized</summary>
       <description>Whether the navigation window should be maximized by default.</description>
+    </key>
+    <key type="d" name="vinder-split-position">
+      <range min="0.2" max="0.8"/>
+      <default>0.5</default>
+      <summary>Relative position of the split view divider</summary>
+      <description>The divider position as a fraction of the window width.</description>
     </key>
     <key type="(ii)" name="initial-size-file-chooser">
       <default>(890,550)</default>

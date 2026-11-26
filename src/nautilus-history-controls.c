@@ -67,6 +67,11 @@ static void
 show_menu (NautilusHistoryControls *self,
            GtkWidget               *widget)
 {
+    if (self->window_slot == NULL)
+    {
+        return;
+    }
+
     int direction = GPOINTER_TO_INT (g_object_get_data (G_OBJECT (widget),
                                                         "nav-direction"));
     g_autoptr (GMenu) menu = g_menu_new ();
@@ -204,6 +209,7 @@ nautilus_history_controls_dispose (GObject *object)
 
     adw_bin_set_child (ADW_BIN (self), NULL);
     gtk_widget_dispose_template (GTK_WIDGET (self), NAUTILUS_TYPE_HISTORY_CONTROLS);
+    g_clear_weak_pointer (&self->window_slot);
 
     G_OBJECT_CLASS (nautilus_history_controls_parent_class)->dispose (object);
 }
@@ -220,7 +226,8 @@ nautilus_history_controls_set_window_slot (NautilusHistoryControls *self,
         return;
     }
 
-    self->window_slot = window_slot;
+    g_set_weak_pointer (&self->window_slot, window_slot);
+    gtk_widget_set_sensitive (GTK_WIDGET (self), window_slot != NULL);
 
     g_object_notify_by_pspec (G_OBJECT (self), properties[PROP_WINDOW_SLOT]);
 }

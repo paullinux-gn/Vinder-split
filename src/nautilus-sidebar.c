@@ -40,6 +40,7 @@
 #include "nautilus-trash-monitor.h"
 #include "nautilus-ui-utilities.h"
 #include "nautilus-window-slot.h"
+#include "nautilus-window.h"
 
 #ifdef GDK_WINDOWING_X11
 #include <gdk/x11/gdkx.h>
@@ -244,6 +245,17 @@ call_open_location (NautilusSidebar    *self,
     if (open_flags == NAUTILUS_OPEN_FLAG_NEW_TAB)
     {
         open_flags |= NAUTILUS_OPEN_FLAG_DONT_MAKE_ACTIVE;
+    }
+
+    if ((open_flags & NAUTILUS_OPEN_FLAG_OTHER_PANE) != 0)
+    {
+        NautilusWindow *window = NAUTILUS_WINDOW (gtk_widget_get_ancestor (GTK_WIDGET (self),
+                                                                           NAUTILUS_TYPE_WINDOW));
+        if (window != NULL)
+        {
+            nautilus_window_open_location_in_other_pane (window, location);
+        }
+        return;
     }
 
     if (open_flags & (NAUTILUS_OPEN_FLAG_NEW_WINDOW | NAUTILUS_OPEN_FLAG_NEW_TAB))
@@ -2924,6 +2936,13 @@ build_popup_menu_using_gmenu (NautilusSidebarRow *row)
             g_menu_append_item (menu, item);
             g_object_unref (item);
         }
+        if (sidebar->open_flags & NAUTILUS_OPEN_FLAG_OTHER_PANE)
+        {
+            item = g_menu_item_new (_("Open in Other _Pane"), "row.open-other");
+            g_menu_item_set_action_and_target_value (item, "row.open-other", g_variant_new_int32 (NAUTILUS_OPEN_FLAG_OTHER_PANE));
+            g_menu_append_item (menu, item);
+            g_object_unref (item);
+        }
         cloud_provider_menu = cloud_providers_account_get_menu_model (cloud_provider_account);
         cloud_provider_action_group = cloud_providers_account_get_action_group (cloud_provider_account);
         if (cloud_provider_menu != NULL && cloud_provider_action_group != NULL)
@@ -3037,6 +3056,15 @@ create_row_popover (NautilusSidebar    *sidebar,
         item = g_menu_item_new (_("Open in New _Window"), "row.open-other");
         g_menu_item_set_action_and_target_value (item, "row.open-other",
                                                  g_variant_new_int32 (NAUTILUS_OPEN_FLAG_NEW_WINDOW));
+        g_menu_append_item (section, item);
+        g_object_unref (item);
+    }
+
+    if (sidebar->open_flags & NAUTILUS_OPEN_FLAG_OTHER_PANE)
+    {
+        item = g_menu_item_new (_("Open in Other _Pane"), "row.open-other");
+        g_menu_item_set_action_and_target_value (item, "row.open-other",
+                                                 g_variant_new_int32 (NAUTILUS_OPEN_FLAG_OTHER_PANE));
         g_menu_append_item (section, item);
         g_object_unref (item);
     }

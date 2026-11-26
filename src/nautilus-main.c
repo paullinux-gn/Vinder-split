@@ -32,6 +32,7 @@ main (int   argc,
 {
     gint retval;
     NautilusApplication *application;
+
     /* Initialize gettext support */
     setlocale (LC_ALL, "");
     bindtextdomain (GETTEXT_PACKAGE, LOCALEDIR);
